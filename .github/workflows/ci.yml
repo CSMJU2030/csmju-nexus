@@ -1,0 +1,17 @@
+# .github/workflows/ci.yml
+# Copy this file, unmodified, into every csmju-<subsystem> repo.
+# This file is short and fixed on purpose — CODEOWNERS restricts who can
+# change it (see templates/CODEOWNERS). Bump the pinned tag only through a
+# DevOps-approved PR.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  compliance:
+    uses: CSMJU2030/csmju2030-standards/.github/workflows/subsystem-compliance.yml@v1.0.0
+    with:
+      subsystem_name: csmju-nexus
+    secrets: inherit

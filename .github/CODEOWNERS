@@ -1,0 +1,16 @@
+# .github/CODEOWNERS
+# Copy into every csmju-<subsystem> repo, replacing nexus.
+
+# ค่าเริ่มต้น — PL ของระบบย่อยนี้ต้อง review ทุก PR
+*                       @csmju2030/pl-nexus
+
+# ไฟล์ที่ AIE ห้ามแก้เอง — DevOps เท่านั้นที่ approve ได้
+/.github/               @csmju2030/devops
+/.github/workflows/     @csmju2030/devops
+/.github/CODEOWNERS     @csmju2030/devops
+/standards              @csmju2030/devops
+/.compliance-exceptions.yml @csmju2030/devops
+/subsystem.yaml         @csmju2030/devops @csmju2030/pm
+
+# ไฟล์ contract ที่กระทบระบบอื่น — ต้องมี PM ร่วม approve
+/backend/openapi.json   @csmju2030/pl-nexus @csmju2030/pm

@@ -1,0 +1,68 @@
+# .github/workflows/conformance-nightly.yml
+# Copy this file, unmodified, into every csmju-<subsystem> repo (new-subsystem.sh
+# does this automatically for new repos).
+#
+# Runtime conformance — ยิงระบบที่รันอยู่จริงผ่าน HTTP
+# ต่างจาก subsystem-compliance.yml ที่ตรวจซอร์สโค้ดแบบ static:
+# workflow นี้ต้องมี Core Hub + ระบบย่อย + PostgreSQL รันอยู่จริง จึงไม่รันทุก PR
+# ใช้แบบ nightly และก่อน release ตาม docs/conformance.md ข้อ 5 (ตอนนี้สั่งรันเองเท่านั้น ดูหมายเหตุที่ on:)
+#
+# ไม่ต้องระบุ subsystem_url เอง — runner อ่าน base_url จาก subsystem.yaml ที่ราก
+# repo นี้เป็นค่าเริ่มต้นอยู่แล้ว (ดู conformance/lib/manifest.js) ใส่ input ตอน
+# workflow_dispatch เฉพาะตอนต้องการ override ชั่วคราวเท่านั้น
+name: Runtime Conformance (nightly)
+
+on:
+  # ยังไม่เปิด schedule: base_url ใน subsystem.yaml เป็น localhost ซึ่ง runner
+  # ของ GitHub ต่อไม่ได้ ถ้าเปิดไว้ทุก repo จะ fail ทุกคืน เปิดเมื่อมี Dev Server
+  # ที่เข้าถึงได้จากภายนอกและแก้ base_url แล้ว
+  #   schedule:
+  #     - cron: '0 19 * * *'      # 02:00 ตามเวลาไทย
+  workflow_dispatch:
+    inputs:
+      subsystem_url:
+        description: 'override base URL ของระบบย่อย (ปกติไม่ต้องใส่ อ่านจาก subsystem.yaml)'
+        required: false
+        type: string
+      core_hub_url:
+        description: 'override base URL ของ Core Hub (ปกติไม่ต้องใส่)'
+        required: false
+        type: string
+      level:
+        description: 'override ระดับ conformance (ปกติไม่ต้องใส่)'
+        required: false
+        type: choice
+        options: ['', L1, L2, L3]
+
+jobs:
+  conformance:
+    name: Runtime Conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run conformance suite
+        env:
+          CONFORMANCE_URL: ${{ inputs.subsystem_url }}
+          CONFORMANCE_CORE_HUB: ${{ inputs.core_hub_url }}
+          CONFORMANCE_LEVEL: ${{ inputs.level }}
+        run: |
+          ARGS=""
+          [[ -n "$CONFORMANCE_URL" ]] && ARGS="$ARGS --url $CONFORMANCE_URL"
+          [[ -n "$CONFORMANCE_CORE_HUB" ]] && ARGS="$ARGS --core-hub $CONFORMANCE_CORE_HUB"
+          [[ -n "$CONFORMANCE_LEVEL" ]] && ARGS="$ARGS --level $CONFORMANCE_LEVEL"
+          node standards/conformance/run.js $ARGS --json
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-report
+          path: conformance-report.json
+          if-no-files-found: ignore

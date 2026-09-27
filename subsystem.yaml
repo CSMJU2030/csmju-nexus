@@ -1,0 +1,36 @@
+# manifest ของระบบย่อย — CI และ conformance อ่านไฟล์นี้ไฟล์เดียว
+# schema: standards/schemas/subsystem.schema.json
+
+name: csmju-nexus          # ต้องตรงกับทะเบียนใน Core Hub และกับ data.service ของ /api/health
+standards_version: "1.0.0"
+conformance_level: L3                 # L1 · L2 · L3 (ระบบที่มี UI ต้องถึง L3)
+
+base_url: http://localhost:3002       # URL ของระบบย่อยตอนรันเพื่อทดสอบ
+core_hub_url: http://localhost:3000
+callback_path: /auth/callback         # ต้องตรงกับ callback_url ที่ลงทะเบียนไว้
+
+public_endpoints:
+  - GET /api/health
+  - GET /auth/callback
+
+# conformance ใช้ probes ตรวจสัญญา API — ประกาศไม่ครบ = ขึ้น SKIP = ยังไม่ผ่าน
+probes:
+  collection: /api/v1/<resources>
+  not_found: /api/v1/<resources>/99999999-9999-4999-8999-999999999999
+  invalid_id: /api/v1/<resources>/not-a-uuid
+  create:
+    path: /api/v1/<resources>
+    allowed_role: staff
+    denied_role: student
+    invalid_body:
+      someRequiredField: ""
+    valid_body:
+      someRequiredField: value
+
+owners:
+  pl: "@csmju2030/pl-nexus"
+  aie: "@csmju2030/aie-nexus"
+
+display_name: "CS Nexus"
+repo: github.com/CSMJU2030/csmju-nexus
+status: proposed
