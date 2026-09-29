@@ -8,7 +8,6 @@
 /.github/               @csmju2030/devops
 /.github/workflows/     @csmju2030/devops
 /.github/CODEOWNERS     @csmju2030/devops
-/standards              @csmju2030/devops
 /.compliance-exceptions.yml @csmju2030/devops
 /subsystem.yaml         @csmju2030/devops @csmju2030/pm
 
