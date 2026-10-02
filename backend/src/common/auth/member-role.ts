@@ -80,7 +80,7 @@ export async function resolveMember(prisma: PrismaService, user: CoreHubUser) {
 /// (ตรวจแล้วเมื่อ 27 ก.ย. 2569 — คืนแค่ id/email/role)
 /// ชื่อจริงอยู่ในตาราง `Person` ซึ่งระบบย่อยเรียกไม่ได้ (403)
 ///
-/// ขอ endpoint ที่แปลง `sub` เป็นชื่อไว้แล้ว — docs/ถึง-PM-สิ่งที่ต้องเพิ่ม.md ข้อ 1
+/// ขอ endpoint ที่แปลง `sub` เป็นชื่อไว้แล้ว — คำขอ endpoint ข้อมูลโปรไฟล์ที่ยื่น PM ไว้แล้ว
 /// ระหว่างนี้ส่วนหน้าที่ของอีเมลอ่านง่ายกว่า `user-002` มาก
 export function nameFromEmail(email: string): string | null {
   const local = email.split('@')[0]?.trim();

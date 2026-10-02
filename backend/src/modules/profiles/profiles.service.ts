@@ -334,7 +334,7 @@ export class ProfilesService {
   ///
   /// ชื่อจริง (`fullNameTh` `academicTitle` `photoUrl`) อยู่ในตาราง `Person`
   /// ของ Core Hub และมี `coreUserId` ผูกกับ `sub` อยู่แล้ว — ติดแค่ว่าระบบย่อย
-  /// เรียกไม่ได้ ขอ endpoint ไว้แล้วที่ docs/ถึง-PM-สิ่งที่ต้องเพิ่ม.md ข้อ 1
+  /// เรียกไม่ได้ ขอ endpoint ไว้แล้วที่ คำขอ endpoint ข้อมูลโปรไฟล์ที่ยื่น PM ไว้แล้ว
   ///
   /// **โค้ดเดิมตรงนี้ยิงไปที่ `x-client-id` / `x-client-secret`** ซึ่งเป็นกลไก
   /// ของสถาปัตยกรรม API Gateway ที่สัญญา v1.0 บอกว่าไม่เคยมีอยู่จริง และต่อให้
@@ -349,7 +349,7 @@ export class ProfilesService {
     if (coreUserIds.length > 0) {
       this.logger.debug(
         `ยังซิงก์ชื่อจาก Core Hub ไม่ได้ (${coreUserIds.length} คน) — ` +
-          'รอ endpoint ตาม docs/ถึง-PM-สิ่งที่ต้องเพิ่ม.md ข้อ 1',
+          'รอ endpoint ตาม คำขอ endpoint ข้อมูลโปรไฟล์ที่ยื่น PM ไว้แล้ว',
       );
     }
 

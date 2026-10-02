@@ -34,7 +34,7 @@ export function SessionCard() {
   const [error, setError] = useState('');
 
   // ตัวอักษรแรกของอีเมลใช้เป็นรูปแทนตัว ระหว่างที่ Core Hub ยังไม่เปิดให้
-  // ดึงรูปโปรไฟล์จริง (docs/ถึง-PM-สิ่งที่ต้องเพิ่ม.md ข้อ 1)
+  // ดึงรูปโปรไฟล์จริง (คำขอ endpoint ข้อมูลโปรไฟล์ที่ยื่น PM ไว้แล้ว)
   const initial = me.email.trim().charAt(0).toUpperCase() || '?';
 
   const leave = async () => {
