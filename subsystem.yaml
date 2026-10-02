@@ -1,36 +1,274 @@
 # manifest ของระบบย่อย — CI และ conformance อ่านไฟล์นี้ไฟล์เดียว
 # schema: standards/schemas/subsystem.schema.json
+#
+# เขียนตาม templates/subsystem.yaml ของ standards v1.7.0 (SSO 1.1 · auth-contract 1.2)
+# ห้ามใส่บัญชีหรือรหัสผ่านในไฟล์นี้ (มี test_accounts = conformance 1.7 หยุดทันที)
+# บัญชีทดสอบอยู่ในไฟล์นอก repo ที่ CONFORMANCE_ACCOUNTS_FILE ชี้ (conformance.md ข้อ 2.1)
 
-name: csmju-nexus          # ต้องตรงกับทะเบียนใน Core Hub และกับ data.service ของ /api/health
-standards_version: "1.0.0"
-conformance_level: L3                 # L1 · L2 · L3 (ระบบที่มี UI ต้องถึง L3)
+name: csmju-nexus # ต้องตรงกับทะเบียนใน Core Hub และกับ data.service ของ /api/health
+# ไม่มี standards_version แล้ว — deprecated ตั้งแต่ 1.5.1 · เวอร์ชันจริงอยู่ใน .standards-version (1.7.0)
+conformance_level: L3 # ระบบนี้มี UI จึงต้องถึง L3
 
-base_url: http://localhost:3002       # URL ของระบบย่อยตอนรันเพื่อทดสอบ
-core_hub_url: http://localhost:3000
-callback_path: /auth/callback         # ต้องตรงกับ callback_url ที่ลงทะเบียนไว้
+display_name: "CS Nexus — สังคมออนไลน์ วิดีโอสั้น และห้องคอลประจำสาขา"
+repo: github.com/CSMJU2030/csmju-nexus
+# status มาจากแม่แบบของ org (schema 1.7 อนุญาตผ่าน additionalProperties) · owners อยู่ใต้ probes
+status: proposed
 
+# frontend เป็นประตูเดียวของระบบ (connect-core-hub.md ข้อ 1): Next rewrite
+# /api/* และ /auth/login /auth/callback /auth/logout ไปที่ backend :4222
+# localhost ไม่ใช่ 127.0.0.1 — คุกกี้ผูกกับชื่อ host และ callback ลงทะเบียนเป็น localhost
+base_url: http://localhost:3222
+# Core Hub ตัวจริงของโครงการ (dev server ของ PM) — ใช้ทั้งสองค่า
+# ถ้าจะกลับไปรันกับ Core Hub ในเครื่อง: core_hub_url http://localhost:3000 · core_hub_web_url http://127.0.0.1:3100
+core_hub_url: https://csmju2030.jowave.com
+core_hub_web_url: https://csmju2030.jowave.com
+callback_path: /auth/callback # base_url + callback_path ต้องตรงกับ Callback URL ในทะเบียน
+
+# ── เส้นทางที่เรียกได้โดยไม่ต้องมี token (SSO 1.1) ─────────────────────
+#
+# สัญญาอนุญาตแค่สี่เส้นนี้ — conformance ยิงทุกตัวแบบไม่มี token
+# เส้นอื่นที่โผล่มาในนี้คือช่องโหว่ ไม่ใช่ความสะดวก
 public_endpoints:
   - GET /api/health
+  - GET /auth/login
   - GET /auth/callback
+  - POST /auth/logout
 
-# conformance ใช้ probes ตรวจสัญญา API — ประกาศไม่ครบ = ขึ้น SKIP = ยังไม่ผ่าน
+# ── Layer 1 → Layer 2 ────────────────────────────────────────────────
+#
+# **ต้องตรงกับ `DEFAULT_ROLE_MAPPING` ใน backend/src/auth/role-mapping.ts เป๊ะ**
+# key ของตารางนี้คือรายชื่อ core role ที่ Core Hub จะปล่อยให้เข้าระบบนี้
+# (authorization.md ข้อ 3) — ถ้าสองที่ไม่ตรงกัน ผู้ใช้จะเข้าได้แต่กดอะไรไม่ได้
+# lecturer ใช้สิทธิ์ชุดเดียวกับ staff · guest (ผู้เยี่ยมชม) เท่านักศึกษา (standards 1.6.0+)
+default_role_mapping:
+  student: GUEST
+  alumni: GUEST
+  staff: EDITOR
+  lecturer: EDITOR
+  guest: GUEST
+  admin: ADMIN
+
+# `reason` **บังคับ** — `RequestedExceptionDto` ของ Core Hub ใช้ @MinLength(1)
+# ถ้าไม่มี POST /api/v1/subsystems จะตอบ 400 (ยืนยันจากโค้ดจริงเมื่อ 27 ก.ย. 2569)
+requested_exceptions:
+  # repo นี้เป็น public — ไม่ใส่ coreUserId จริง (มีรหัสนักศึกษา) · PL กรอกค่าจริงในฟอร์มลงทะเบียนของ Core Hub เอง
+  - username: owner-core-user-id
+    role: ADMIN
+    # บรรทัดเดียว — ตัวอ่าน manifest ของ conformance ไม่รองรับข้อความหลายบรรทัด (>-)
+    reason: "เจ้าของระบบต้องเข้าหน้าจัดการเนื้อหาของระบบย่อยได้ (ลบคลิปที่ถูกรายงาน ปลดแบนผู้ใช้ ดู audit log) แต่ core role เป็น student ซึ่ง default_role_mapping แปลงเป็น GUEST"
+
+# ── probes ที่ conformance ใช้ตรวจสัญญา API ระดับ L2 ขึ้นไป ───────────
+#
+# ประกาศไม่ครบ = ขึ้น SKIP = **ยังไม่ผ่าน** (conformance.md ข้อ 3)
 probes:
-  collection: /api/v1/<resources>
-  not_found: /api/v1/<resources>/99999999-9999-4999-8999-999999999999
-  invalid_id: /api/v1/<resources>/not-a-uuid
+  collection: /api/v1/reels
+  not_found: /api/v1/reels/99999999-9999-4999-8999-999999999999
+  invalid_id: /api/v1/reels/not-a-uuid
+  # ต้องเป็นการเขียนที่ denied_role ถูกห้าม **ตามการออกแบบจริง**
+  # เดิมใช้ POST /posts แต่นักศึกษาตั้งกระทู้ได้ (เป็นหัวใจของฟีด) L2-12 จึงตก
+  # ห้องประจำวิชาสร้างได้เฉพาะ staff/admin (channels.service.ts · kind COURSE)
+  # runner ส่ง valid_body ด้วย token ของ denied_role เท่านั้น จึงไม่มีห้องค้างในฐานข้อมูล
+  # key ใน body ต้องเป็นคำเดียว — runner แปลง snake_case เป็น camelCase ทั้งก้อน
+  # (course_tag → courseTag แล้วโดน forbidNonWhitelisted ตอบ 400 แทน 403)
   create:
-    path: /api/v1/<resources>
+    path: /api/v1/channels
     allowed_role: staff
-    denied_role: student
+    # server จริง: นักศึกษาเข้าด้วย MJU SSO อย่างเดียว (ไม่มีบัญชีรหัสผ่าน) จึงใช้ guest
+    # ซึ่ง map เป็น GUEST เหมือน student · Core Hub ในเครื่องใช้ student ได้
+    denied_role: guest
     invalid_body:
-      someRequiredField: ""
+      kind: COURSE
+      name: ""
     valid_body:
-      someRequiredField: value
+      kind: COURSE
+      name: Conformance Probe
+      description: ห้องทดสอบจากชุด conformance
 
 owners:
   pl: "@csmju2030/pl-nexus"
   aie: "@csmju2030/aie-nexus"
 
-display_name: "CS Nexus"
-repo: github.com/CSMJU2030/csmju-nexus
-status: proposed
+# ─────────────────────────────────────────────────────────────────────
+# ส่วนต่อจากนี้ไม่ได้อยู่ใน schema กลาง (schema เปิด additionalProperties)
+# มีไว้ให้ PM ตรวจได้ว่าระบบย่อยนี้แตะอะไรและไม่แตะอะไร
+# ─────────────────────────────────────────────────────────────────────
+
+api:
+  prefix: /api/v1
+  health_check: /api/health # ไม่มีเลขเวอร์ชันตาม vocabulary.json
+  openapi: backend/openapi.json # เขียนใหม่ทุกครั้งที่บูต จึงตรงกับโค้ดเสมอ
+  endpoint_count: 68
+  websocket:
+    namespace: /realtime
+    # socket.io ผ่าน rewrite ของ Next ไม่ได้ จึงต่อตรงที่ backend :4222
+    # ยืนยันตัวตนด้วยตัวตรวจ token ตัวเดียวกับ HTTP (คุกกี้ session ซึ่งเป็น
+    # host-only ของ localhost จึงติดมาที่ :4222 ด้วย) หรือตั๋วอายุ 60 วินาทีที่ขอผ่าน REST
+    auth: session_cookie_or_short_lived_ticket
+
+# ── ชั้นหน้าจอ (ui-design-system.md ข้อ 19.2) ─────────────────────────
+#
+# ประกาศตามจริง: **ยังไม่ได้ใช้ @csmju2030/design-system**
+# สองเหตุผล และทั้งสองข้อไม่ได้อยู่ในมือเรา
+#
+#   1. ติดตั้งไม่ได้ — package อยู่บน GitHub Packages ต้องมี PAT ที่มีสิทธิ์
+#      read:packages ซึ่งยังไม่ได้รับ
+#   2. design-system v1.3.0 สร้างตามสัญญาที่ standards v1.0.0 ยกเลิกไปแล้ว
+#      (/oauth/token · claim username/faculty · meta per_page) รอ PM ชี้ขาด
+#
+# รายละเอียดพร้อมหลักฐาน: docs/design-system-กับสัญญาที่ขัดกัน.md
+ui:
+  design_system_version: null # ยังไม่ได้ติดตั้ง — ดูเหตุผลด้านบน
+  design_system_status: blocked_on_pat_and_pm_ruling
+  theme: light+dark # globals.css มีครบทั้งสองโหมด
+  # เบี่ยงจากสีองค์กร rgb(0 76 153) ตามคำสั่ง PL 29 ก.ย. 2569 — หน้าตาแบบ Instagram บนเว็บ
+  # (พื้นมืด rgb(12 16 20) · ปุ่มหลัก rgb(74 93 249)) · ต้องขอส่วนกลางยืนยันก่อนขึ้นระบบจริง
+  theme_deviation: instagram_like_by_pl_decision
+  tailwind: "4" # preset ของ design system เป็น v3 — ต้องยืนยันก่อนย้าย
+  app_shell: false # วาดแถบซ้ายแบบ Instagram เอง (DS-01) เพราะไม่มี <CsmjuAppShell>
+
+  # เมนูหลัก — ต้องตรงกับแถบซ้าย frontend/src/components/csmju/app-rail.tsx
+  nav:
+    - { label: "หน้าหลัก", path: "/feed" }
+    - { label: "คลิปสั้น", path: "/reels" }
+    - { label: "ข้อความ", path: "/messages" }
+    - { label: "ค้นหา", path: "/search" }
+    - { label: "การแจ้งเตือน", path: "/notifications" }
+    - { label: "ห้องแชท", path: "/chat" }
+    - { label: "ห้องเสียง", path: "/voice" }
+    - { label: "นัดประชุม", path: "/meetings" }
+    - { label: "แดชบอร์ด", path: "/admin" }
+    - { label: "โปรไฟล์", path: "/profile/:coreUserId" }
+    - { label: "การตั้งค่า", path: "/settings" }
+    - { label: "บันทึกไว้", path: "/saved" }
+
+  # component ที่เราเขียนเอง — ตาม ui-design-system.md ทุกตัวต้องมีเลข issue
+  # กำกับ ตอนนี้ยังไม่มี เพราะยังไม่ได้ยื่นขอ (ยื่นไม่ได้จนกว่าจะติดตั้ง package
+  # แล้วรู้ว่าตัวไหนซ้ำกับของส่วนกลางจริง)
+  local_components: pending_issue
+
+  # ผลตรวจด้วย csmju-ui-lint ของ design system (รันเมื่อ 27 ก.ย. 2569)
+  ui_lint:
+    tool_version: "1.3.0"
+    enforced_by_ci: false # PR check-ui-designsystem.sh ยังไม่ถูก merge เข้า standards
+    errors: 35
+    warnings: 145
+    # ที่เหลือแยกเป็นสามกอง ดูรายละเอียดใน docs/design-system-กับสัญญาที่ขัดกัน.md
+
+modules:
+  - subsystem-members # สิทธิ์ Layer 2 + โควตาพื้นที่
+  - profiles # โปรไฟล์ + แคชชื่อจาก Core
+  - follows # กราฟการติดตาม + ฟีด
+  - notifications # แจ้งเตือน + ผลักผ่าน socket
+  - assets # อัปโหลดสามจังหวะ + ตรวจ magic bytes
+  - reels # คลิปสั้น ไลก์ คอมเมนต์ ยอดผู้ชม
+  - posts # กระดานข่าว Q&A ตามรายวิชา
+  - channels # แชท เธรด ปักหมุด แก้ข้อความ
+  - realtime # Socket.io gateway + ตั๋ว
+  - voice # ห้องเสียง WebRTC mesh + แชร์หน้าจอ
+  - reactions # อิโมจิบนแชท/โพสต์/คลิป
+  - bookmarks # บันทึกไว้ดูทีหลัง
+  - search # ค้นคลิป กระทู้ คน ข้อความ
+  - reports # แจ้งเนื้อหา + คิวผู้ดูแล
+  - meetings # นัดประชุมล่วงหน้าแบบ Teams
+  - stories # สตอรี่ 24 ชั่วโมง (หมดอายุตอนอ่าน ไม่ต้องมี cron)
+  - presence # ใครออนไลน์ทั่วระบบ (ในหน่วยความจำ ไม่ลงฐานข้อมูล)
+  - audit-logs # เปิดให้ Admin Panel กลางอ่าน
+  - auth # ตรวจ JWT ผ่าน JWKS + /auth/login · /auth/callback · /auth/logout + /api/v1/me
+
+# สถานะการทำตามข้อห้ามของสัญญา (standards 1.7.0) — รายงานตามจริง ไม่ใช่ตามที่อยากให้เป็น
+compliance:
+  own_login_page: false # ไม่มีหน้า login และไม่มีช่องรับรหัสผ่าน
+  verifies_jwt_via_jwks: true # ตรวจเองด้วย jose ครบ 10 ขั้น (auth-contract 1.2 · SEC-04)
+  issues_own_tokens: false # session คือ token ของ Core Hub ที่ verify แล้ว
+  frontend_touches_database: false # หน้าบ้านคุยกับ backend เท่านั้น
+  response_envelope: true # { success, data, meta } ทุก endpoint
+  closed_error_codes: true # 9 ค่าตาม contracts/error-codes.json (429/503 มี Retry-After)
+  camel_case_json: true
+  snake_case_database: true # ผ่าน @map/@@map
+  iso8601_timestamps: true
+
+  identity_key_is_core_user_id: true
+  # ย้ายจาก `username` มาเป็น `coreUserId` ทั้งระบบแล้วเมื่อ 27 ก.ย. 2569
+  # (25 คอลัมน์ · 84 ไฟล์) ด้วย migration แบบ RENAME COLUMN ข้อมูลเดิมไม่หาย
+
+  # ── ที่ยังไม่ผ่าน — ระบุไว้ตรง ๆ ไม่ปิดบัง ───────────────────────
+
+  dependencies_within_whitelist: false
+  # มี dependency ที่ยังไม่อยู่ใน allowed-deps.json (ARC-02) — ขอข้อยกเว้นผ่าน Issue ใน csmju2030-standards
+  # (socket.io สาย realtime) ส่วนที่เหลือจะเอาออกเองตอนย้ายไปใช้ design system
+
+data_ownership:
+  local_only:
+    - layer2_role # Local Data นิยามเองได้
+    - layer2_role_explicit # แยก "ผู้ดูแลตั้งเอง" ออกจาก "แปลงมาจาก core role"
+    - bio # ข้อความแนะนำตัวที่เขียนเพื่อชุมชนนี้ (เนื้อหา ไม่ใช่ตัวตน)
+    - รูปปกโปรไฟล์ (ไม่ใช่รูปโปรไฟล์ ซึ่งเป็นของ Core)
+    - storage_quota_bytes
+    - เนื้อหาที่ผู้ใช้สร้างในระบบย่อยนี้ (คลิป กระทู้ ข้อความ ไฟล์แนบ)
+    - กราฟการติดตาม รีแอ็กชัน บุ๊กมาร์ก แจ้งเตือน
+  cached_from_core:
+    - display_name # ตาราง profile_cache · TTL 6 ชั่วโมง · ไม่ใช่แหล่งความจริง
+    - avatar_url
+  # TODO(PL): ยืนยันว่าการแคช display_name แบบนี้ผ่าน data-dictionary.md ข้อ 10
+  never_stored:
+    - core_role
+    - email
+    - รหัสผ่านหรือ refresh token ของผู้ใช้
+
+# เพดานที่บังคับที่ชั้น service ไม่ใช่ที่ UI (เพราะ UI เลี่ยงได้)
+limits:
+  storage_quota_per_user_bytes: 209715200 # 200 MB
+  max_admin_settable_quota_bytes: 5368709120 # 5 GB
+  voice_seats_per_room: 8 # จากคณิตศาสตร์ของ mesh P2P
+  screen_share_viewers: 4
+  mentions_per_message: 10
+  pinned_messages_per_channel: 50
+  message_edit_window_minutes: 15
+  socket_messages_per_10s: 20
+  reel_duration_ms: 60000
+  story_ttl_hours: 24
+  story_notify_follower_cap: 50 # เกินนี้ไม่แจ้งเตือน กันช่องแจ้งเตือนล้น
+  bio_max_chars: 300
+
+# ── การลงทะเบียนกับ Core Hub ตัวจริง ─────────────────────────────────
+#
+# ยืนยันกับ github.com/CSMJU2030/csmju-core-hub commit 88a600f เมื่อ 27 ก.ย. 2569
+# โดย clone มารันในเครื่องจริง ลงทะเบียนจริง แล้วรับ token จริงมาตรวจ
+# ผล: ผ่านครบ · ดู docs/ต่อกับ-core-hub.md และ backend/test/core-hub-live.e2e-spec.ts
+#
+# ฟิลด์ข้างล่างคือชื่อที่ `CreateSubsystemDto` ของ Core Hub ใช้ (camelCase)
+# ซึ่งต่างจากชื่อในไฟล์นี้ (snake_case) — แมปไว้ให้ชัดเพื่อไม่ให้คัดลอกผิด
+core_hub_registration:
+  endpoint: POST /api/v1/subsystems
+  requires_permission: subsystem:create # admin หรือ staff เท่านั้น
+  field_mapping:
+    name: name
+    displayName: display_name
+    repo: repo
+    standardsVersion: .standards-version # ค่าในไฟล์ ไม่ใช่ฟิลด์ใน manifest นี้แล้ว
+    defaultRoleMapping: default_role_mapping
+    requestedExceptions: requested_exceptions # ต้องมี reason ไม่งั้น 400
+    callbackUrl: base_url + callback_path
+    baseUrl: base_url # Monitor จะยิง <baseUrl>/api/health
+  # ต้องอนุมัติและเปิดใช้งานก่อน ไม่งั้น sso/handoff ตอบ 409
+  after_create:
+    - POST /api/v1/subsystems/{id}/approve # approvalStatus -> APPROVED
+    - POST /api/v1/subsystems/{id}/activate # status -> ACTIVE
+  # key ของ default_role_mapping คือ **รายชื่อคนที่เข้าระบบนี้ได้**
+  # core role ที่ไม่อยู่ใน key จะโดน 403 ตั้งแต่ก่อนออก token
+  # (SsoService.allowedCoreRoles) ทดสอบแล้ว: ลบ alumni ออก -> alumni ได้ 403
+  role_mapping_is_access_list: true
+  # TODO(PL): `owner` ต้องเป็น username ของ PL ที่มีบัญชีใน Core Hub
+  # ตอนทดสอบใช้ `admin` จาก seed ไปก่อน ยังไม่มีบัญชีจริง
+  owner: TBD
+
+depends_on_core:
+  - sso_web_authorize # เว็บ GET /sso/authorize?subsystem=&state= (ปลายทางของ /auth/login)
+  - sso_web_logout # เว็บ GET /logout (ปลายทางของ POST /auth/logout)
+  - sso_authorize # GET /api/v1/auth/sso/authorize (สคริปต์ · conformance)
+  - sso_handoff # GET /api/v1/auth/sso/handoff (แบบ JSON — SSO launcher ใช้ตัวนี้)
+  - subsystem_registry # POST /api/v1/subsystems + approve + activate
+  - jwks # GET /api/v1/.well-known/jwks.json
+  # TODO(PL): ต้องการ endpoint ที่แปลง `sub` เป็นชื่อที่แสดงผล
+  # data-dictionary.md ข้อ 1.2 บอกว่า GET /api/v1/users/:id ต้องมี permission
+  # ขอทราบว่าระบบย่อยขอสิทธิ์นั้นได้อย่างไร ไม่งั้นหน้าจอจะแสดงได้แค่ `sub`
