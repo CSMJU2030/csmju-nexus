@@ -1,0 +1,60 @@
+#!/bin/sh
+#
+# กันของพังตั้งแต่ก่อน commit
+#
+# ด่านนี้ต้อง **เร็ว** เพราะมันขวางทุกครั้งที่กด commit — ถ้าช้าเกินสิบวินาที
+# คนจะเริ่มพิมพ์ --no-verify ทุกครั้งจนด่านนี้ไร้ความหมาย
+# จึงเอาแค่ typecheck (3 วินาที) ส่วนเทสต์เต็มไปอยู่ที่ pre-push
+#
+# ข้ามชั่วคราวได้ด้วย:  git commit --no-verify
+
+set -e
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+# ดูว่าแตะฝั่งไหนบ้าง จะได้ไม่ตรวจฝั่งที่ไม่ได้แก้
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+touched_backend="$(printf '%s\n' "$staged" | grep -c '^backend/' || true)"
+# นับเฉพาะ ^frontend/ จริง ๆ — ของเดิมใช้ grep -cv '^backend/' ซึ่งนับทุกอย่าง
+# ที่ไม่ใช่หลังบ้าน แปลว่าแก้แค่ไฟล์ .md หรือ subsystem.yaml ก็ยังไปรัน
+# typecheck หน้าบ้านเต็ม ๆ ทั้งที่ไม่ได้แตะโค้ดหน้าบ้านเลย
+touched_frontend="$(printf '%s\n' "$staged" | grep -c '^frontend/' || true)"
+
+fail=0
+
+if [ "$touched_frontend" -gt 0 ]; then
+  printf '\033[36m› ตรวจชนิดข้อมูลหน้าบ้าน…\033[0m\n'
+  # ต้องเป็น pnpm --filter ไม่ใช่ `npx tsc` — ตั้งแต่ย้ายมาเป็น pnpm workspace
+  # TypeScript ไม่ได้อยู่ที่รากแล้ว `npx tsc` จึงหาไม่เจอ แล้วไปโหลดแพ็กเกจ
+  # ชื่อ `tsc` จาก npm (คนละตัวกัน เลิกดูแลไปแล้ว) มารันแทน — commit ถูกบล็อก
+  # โดยไม่มีเหตุผล นอกจากนี้ script ของ frontend รัน `next typegen` ให้ก่อน
+  # ซึ่ง tsc เปล่า ๆ ไม่ทำ ทำให้ type ของ route หายไปทั้งชุด
+  pnpm --filter frontend typecheck || fail=1
+fi
+
+# `--silent` ต้องอยู่**ก่อน**ชื่อ script ไม่งั้น pnpm ส่งต่อไปให้ตัวเครื่องมือ
+# แล้ว tsc จะตอบ "Unknown compiler option '--silent'" แล้วบล็อก commit
+# (ของเดิมเขียน `pnpm --filter backend typecheck --silent` ซึ่งพังแบบนั้น)
+if [ "$touched_backend" -gt 0 ]; then
+  printf '\033[36m› ตรวจชนิดข้อมูลหลังบ้าน…\033[0m\n'
+  (pnpm --silent --filter backend typecheck) || fail=1
+fi
+
+# ไฟล์ที่ไม่ควรหลุดขึ้น repo เด็ดขาด
+secrets="$(printf '%s\n' "$staged" | grep -E '(^|/)\.env$|(^|/)\.env\.local$|\.pem$|id_rsa' || true)"
+
+if [ -n "$secrets" ]; then
+  printf '\033[31m✗ มีไฟล์ที่ไม่ควรขึ้น repo อยู่ใน staged:\033[0m\n'
+  printf '%s\n' "$secrets"
+  printf '  เอาออกด้วย: git restore --staged <ไฟล์>\n'
+  fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+  printf '\033[31m✗ commit ถูกยกเลิก — แก้ข้างบนก่อน\033[0m\n'
+  printf '  (ถ้าจำเป็นจริง ๆ ข้ามได้ด้วย git commit --no-verify)\n'
+  exit 1
+fi
+
+printf '\033[32m✓ ผ่าน\033[0m\n'

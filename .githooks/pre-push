@@ -1,0 +1,57 @@
+#!/bin/sh
+#
+# ด่านเต็มก่อนขึ้น GitHub
+#
+# ที่นี่ช้าได้ เพราะ push ไม่ได้ทำบ่อยเท่า commit และของที่ขึ้นไปแล้ว
+# คนอื่นเห็นทันที — คุ้มที่จะรอสักนาที
+#
+# ตรวจชุดเดียวกับที่ CI จะตรวจ จะได้รู้ผลตั้งแต่ยังอยู่ในเครื่อง
+# แทนที่จะรอ CI แดงแล้วค่อยมาแก้
+#
+# ข้ามชั่วคราวได้ด้วย:  git push --no-verify
+
+set -e
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+fail=0
+step() { printf '\033[36m› %s\033[0m\n' "$1"; }
+
+# ทั้งสามด่านนี้ต้องเป็น pnpm --filter ไม่ใช่ npx — ตั้งแต่ย้ายมาเป็น pnpm
+# workspace เครื่องมือหน้าบ้านไม่ได้อยู่ที่รากแล้ว `npx <ชื่อ>` จะหาไม่เจอ
+# แล้วไปโหลดแพ็กเกจชื่อเดียวกันจาก npm มารันแทน (npx tsc โหลด tsc@2.0.4
+# ซึ่งเป็นคนละตัวกับ TypeScript) นอกจากนี้ script ของ frontend รัน
+# `next typegen` ให้ก่อน typecheck ซึ่งการเรียกเครื่องมือตรง ๆ ไม่ทำ
+step 'หน้าบ้าน — ชนิดข้อมูล'
+pnpm --filter frontend typecheck || fail=1
+
+step 'หน้าบ้าน — กฎการเขียนโค้ด'
+pnpm --filter frontend lint || fail=1
+
+step 'หน้าบ้าน — เทสต์'
+pnpm --filter frontend test || fail=1
+
+step 'หลังบ้าน — ชนิดข้อมูล'
+(pnpm --silent --filter backend typecheck) || fail=1
+
+step 'หลังบ้าน — กฎการเขียนโค้ด'
+(pnpm --silent --filter backend lint) || fail=1
+
+# openapi.json ต้องตรงกับโค้ดเสมอ (มาตรฐาน CSMJU2030 หน้า 13)
+# ระบบย่อยอื่นอ่านไฟล์นี้เพื่อเขียนโค้ดฝั่งตัวเอง ถ้ามันเก่ากว่าโค้ด
+# เขาจะเขียนผิดโดยไม่รู้ตัว
+if [ -d backend/dist ]; then
+  step 'หลังบ้าน — openapi ตรงกับโค้ด'
+  (pnpm --silent --filter backend openapi:check) || fail=1
+else
+  printf '\033[33m› ข้าม openapi (ยังไม่ได้ build หลังบ้าน)\033[0m\n'
+fi
+
+if [ "$fail" -ne 0 ]; then
+  printf '\033[31m✗ push ถูกยกเลิก — CI จะแดงด้วยเรื่องเดียวกัน\033[0m\n'
+  printf '  (ถ้าจำเป็นจริง ๆ ข้ามได้ด้วย git push --no-verify)\n'
+  exit 1
+fi
+
+printf '\033[32m✓ ผ่านทุกด่าน — ปลอดภัยที่จะ push\033[0m\n'
