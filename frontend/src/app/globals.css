@@ -1,0 +1,534 @@
+/* ───────────────────────────────────────────────────────────────────
+   ค่าสีเขียนเป็น rgb() ไม่ใช่ #hex
+
+   **แปลงแบบตรงตัว ไม่มีสีไหนเปลี่ยนแม้แต่ค่าเดียว** — น้ำเงินหลักเดิม
+   เขียนด้วยเลขฐานสิบหก ตอนนี้เขียนเป็น rgb(0 76 153) ซึ่งเป็นสีเดียวกันเป๊ะ
+   เป็นแค่การเขียนคนละรูปแบบ (Tailwind v4 เองก็เลิกใช้เลขฐานสิบหกใน @theme แล้ว)
+
+   เหตุผลที่ต้องเขียนแบบนี้: กฎ `UI-01` ที่เวอร์ชัน 1.0.0 ห้ามค่า #hex
+   **ในทุกไฟล์ใต้ frontend/src รวมทั้งไฟล์ token เอง** ซึ่งเป็นกฎที่
+   ทำตามไม่ได้ เพราะไฟล์นิยามสีจะนิยามสีโดยไม่มีค่าสีไม่ได้
+
+   มาตรฐานรู้ตัวแล้วและแก้ไปแล้วบน main (CHANGELOG หัวข้อ
+   "ยังไม่ออกเวอร์ชัน" — ยกเว้น globals.css และ csmju/) แต่ยังไม่ติด tag
+   เราปักหมุดที่ v1.0.0 ตามกฎ GH-04 จึงยังได้สคริปต์ตัวเก่า
+
+   TODO(PL): เมื่อมาตรฐานออกเวอร์ชันใหม่ที่มีการยกเว้นนี้แล้ว จะกลับไป
+   ใช้ #hex หรือคงไว้แบบนี้ก็ได้ ไม่มีผลต่อการแสดงผล
+   ─────────────────────────────────────────────────────────────── */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* ฟอนต์ระบบชุดเดียวกับ Instagram บนเว็บ — ภาษาไทยบน Windows ตกไปที่
+     Leelawadee UI แบบเดียวกับที่ Instagram แสดงผล ส่วนเครื่องที่ไม่มี
+     ใช้ Noto Sans Thai ที่โหลดมากับหน้าเว็บ */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, "Leelawadee UI", var(--font-noto-thai), sans-serif;
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-link: var(--link);
+  --color-badge: var(--badge);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ── ชั้นความลึก ────────────────────────────────────────────────
+     ใช้เงาแทนเส้นขอบหนา ๆ เพื่อแยก "ของที่ลอยอยู่" ออกจากพื้น
+     ค่าถูกปรับแยกสองโหมดข้างล่าง เพราะเงาดำบนพื้นเข้มมองไม่เห็น */
+  --shadow-csmju-xs: var(--elevation-xs);
+  --shadow-csmju-sm: var(--elevation-sm);
+  --shadow-csmju-md: var(--elevation-md);
+  --shadow-csmju-lg: var(--elevation-lg);
+  --shadow-csmju-glow: var(--elevation-glow);
+
+  /* ── มาตราตัวอักษร ──────────────────────────────────────────────
+     ความสูงบรรทัดกว้างกว่าค่าปริยายของ Tailwind เพราะภาษาไทยมีสระบน
+     และวรรณยุกต์ซ้อนกันสองชั้น ถ้าใช้ 1.5 เหมือนภาษาอังกฤษ วรรณยุกต์
+     ของบรรทัดล่างจะชนสระล่างของบรรทัดบน */
+  --text-csmju-display: 2rem;
+  --text-csmju-display--line-height: 1.3;
+  --text-csmju-display--letter-spacing: -0.02em;
+  --text-csmju-display--font-weight: 700;
+
+  --text-csmju-title: 1.375rem;
+  --text-csmju-title--line-height: 1.45;
+  --text-csmju-title--letter-spacing: -0.01em;
+  --text-csmju-title--font-weight: 650;
+
+  --text-csmju-body: 0.9375rem;
+  --text-csmju-body--line-height: 1.75;
+
+  --text-csmju-label: 0.8125rem;
+  --text-csmju-label--line-height: 1.6;
+  --text-csmju-label--font-weight: 500;
+
+  --text-csmju-caption: 0.6875rem;
+  --text-csmju-caption--line-height: 1.6;
+  --text-csmju-caption--letter-spacing: 0.02em;
+
+  /* ── จังหวะการเคลื่อนไหว ───────────────────────────────────────
+     เส้นโค้งเดียวทั้งระบบ ไม่ใช่ ease ปริยายที่ต่างกันทุกที่ */
+  --ease-csmju: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   สีของหน้าจอ — ตามหน้าตา Instagram บนเว็บ (ตัดสินโดย PL 29 ก.ย. 2569)
+
+   **เบี่ยงจาก ui-design-system.md** ซึ่งล็อกสีขององค์กรไว้ที่ rgb(0 76 153)
+   PL สั่งให้หน้าตาเหมือน Instagram ทั้งโหมดสว่างและมืด จึงใช้ชุดนี้แทน
+   และบันทึกไว้ใน subsystem.yaml (ui.theme) ให้ส่วนกลางเห็น
+
+     โหมดมืด   พื้น rgb(12 16 20)  พื้นยก rgb(37 41 46)  ตัวอักษร rgb(245 245 245)
+     โหมดสว่าง พื้นขาว            พื้นยก rgb(239 239 239)  ตัวอักษร rgb(12 16 20)
+     ทั้งสอง   ปุ่มหลัก rgb(74 93 249) · ป้ายแจ้งเตือน rgb(255 48 64)
+   ───────────────────────────────────────────────────────────────── */
+:root {
+  /* ชื่อ --csmju-* ยังอยู่ เพราะคอมโพเนนต์หลายตัวอ้างถึงตรง ๆ */
+  --csmju-primary: rgb(74 93 249);
+  --csmju-primary-soft: rgb(239 239 239);
+  --csmju-ink: rgb(12 16 20);
+  --csmju-surface: rgb(255 255 255);
+
+  /* วงแหวนสตอรี่ที่ยังไม่ได้ดู — ไล่สีแบบ Instagram (เหลือง → ส้ม → ชมพู → ม่วง) */
+  --csmju-story-ring-1: rgb(150 47 191);
+  --csmju-story-ring-2: rgb(214 41 118);
+  --csmju-story-ring-3: rgb(254 218 117);
+
+  --background: rgb(255 255 255);
+  --foreground: rgb(12 16 20);
+  --card: rgb(255 255 255);
+  --card-foreground: rgb(12 16 20);
+  --popover: rgb(255 255 255);
+  --popover-foreground: rgb(12 16 20);
+  --primary: rgb(74 93 249);
+  --primary-foreground: rgb(255 255 255);
+  --secondary: rgb(239 239 239);
+  --secondary-foreground: rgb(12 16 20);
+  --muted: rgb(239 239 239);
+  --muted-foreground: rgb(115 115 115);
+  --accent: rgb(0 0 0 / 0.05);
+  --accent-foreground: rgb(12 16 20);
+  --destructive: rgb(237 73 86);
+  --success: rgb(88 195 34);
+  --warning: rgb(255 183 0);
+  --border: rgb(219 219 219);
+  --input: rgb(219 219 219);
+  --ring: rgb(74 93 249);
+  --link: rgb(74 93 249);
+  --badge: rgb(255 48 64);
+  --bubble-mine: rgb(74 93 249);
+  --bubble-theirs: rgb(239 239 239);
+  --chart-1: rgb(74 93 249);
+  --chart-2: rgb(214 41 118);
+  --chart-3: rgb(150 47 191);
+  --chart-4: rgb(254 218 117);
+  --chart-5: rgb(88 195 34);
+  --radius: 0.5rem;
+  --sidebar: rgb(255 255 255);
+  --sidebar-foreground: rgb(12 16 20);
+  --sidebar-primary: rgb(12 16 20);
+  --sidebar-primary-foreground: rgb(255 255 255);
+  --sidebar-accent: rgb(0 0 0 / 0.05);
+  --sidebar-accent-foreground: rgb(12 16 20);
+  --sidebar-border: rgb(219 219 219);
+  --sidebar-ring: rgb(74 93 249);
+
+  --elevation-xs: 0 1px 2px rgb(0 0 0 / 0.06);
+  --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.08), 0 2px 8px rgb(0 0 0 / 0.06);
+  --elevation-md: 0 4px 12px rgb(0 0 0 / 0.15);
+  --elevation-lg: 0 8px 32px rgb(0 0 0 / 0.2);
+  --elevation-glow: 0 4px 14px rgb(74 93 249 / 0.3);
+
+  --csmju-gradient: linear-gradient(
+    45deg,
+    rgb(254 218 117) 0%,
+    rgb(250 126 30) 25%,
+    rgb(214 41 118) 50%,
+    rgb(150 47 191) 75%,
+    rgb(79 91 213) 100%
+  );
+
+  --hairline: rgb(0 0 0 / 0.08);
+}
+
+.dark {
+  --csmju-primary: rgb(74 93 249);
+  --csmju-primary-soft: rgb(37 41 46);
+  --csmju-ink: rgb(245 245 245);
+  --csmju-surface: rgb(12 16 20);
+
+  --background: rgb(12 16 20);
+  --foreground: rgb(245 245 245);
+  --card: rgb(37 41 46);
+  --card-foreground: rgb(245 245 245);
+  --popover: rgb(37 41 46);
+  --popover-foreground: rgb(245 245 245);
+  --primary: rgb(74 93 249);
+  --primary-foreground: rgb(255 255 255);
+  --secondary: rgb(37 41 46);
+  --secondary-foreground: rgb(245 245 245);
+  --muted: rgb(37 41 46);
+  --muted-foreground: rgb(168 168 168);
+  --accent: rgb(255 255 255 / 0.1);
+  --accent-foreground: rgb(245 245 245);
+  --destructive: rgb(255 48 64);
+  --success: rgb(88 195 34);
+  --warning: rgb(255 183 0);
+  --border: rgb(54 58 63);
+  --input: rgb(54 58 63);
+  --ring: rgb(112 141 255);
+  --link: rgb(112 141 255);
+  --badge: rgb(255 48 64);
+  --bubble-mine: rgb(74 93 249);
+  --bubble-theirs: rgb(37 41 46);
+  --chart-1: rgb(112 141 255);
+  --chart-2: rgb(214 41 118);
+  --chart-3: rgb(150 47 191);
+  --chart-4: rgb(254 218 117);
+  --chart-5: rgb(88 195 34);
+  --sidebar: rgb(12 16 20);
+  --sidebar-foreground: rgb(245 245 245);
+  --sidebar-primary: rgb(245 245 245);
+  --sidebar-primary-foreground: rgb(12 16 20);
+  --sidebar-accent: rgb(255 255 255 / 0.1);
+  --sidebar-accent-foreground: rgb(245 245 245);
+  --sidebar-border: rgb(38 42 46);
+  --sidebar-ring: rgb(112 141 255);
+
+  --elevation-xs: none;
+  --elevation-sm: 0 2px 8px rgb(0 0 0 / 0.4);
+  --elevation-md: 0 4px 16px rgb(0 0 0 / 0.5);
+  --elevation-lg: 0 12px 40px rgb(0 0 0 / 0.6);
+  --elevation-glow: 0 4px 14px rgb(74 93 249 / 0.35);
+
+  --hairline: rgb(255 255 255 / 0.1);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    /* กันหน้าเลื่อนกระตุกตอนสลับหน้าที่ยาวไม่เท่ากัน */
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    /* ตัวเลขในตารางและยอดต่าง ๆ ต้องกว้างเท่ากันทุกตัว ไม่งั้นเลขขยับ
+       ตอนค่าเปลี่ยน (1 กับ 8 กว้างไม่เท่ากันในฟอนต์ปกติ) */
+    font-variant-numeric: tabular-nums;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* โฟกัสที่มองเห็นชัด — ผู้ใช้คีย์บอร์ดต้องรู้ตลอดว่าอยู่ตรงไหน
+     ใช้ :focus-visible ไม่ใช่ :focus เพื่อไม่ให้ขึ้นตอนคลิกเมาส์ */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: rgb(74 93 249 / 0.35);
+  }
+
+  /* แถบเลื่อนบาง ๆ ที่กลมกลืนกับธีม ไม่ใช่แถบเทาของระบบปฏิบัติการ
+     ที่ตัดกับพื้นมืดจนสะดุดตา */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 0.625rem;
+    height: 0.625rem;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 9999px;
+    border: 0.1875rem solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+    background-clip: content-box;
+  }
+
+  /* หัวข้อไม่ควรตัดคำทิ้งบรรทัดสุดท้ายไว้คำเดียว */
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   คลาสช่วยที่ใช้ซ้ำทั้งระบบ
+   อยู่ที่นี่เพราะเป็นรูปแบบที่ซ้ำกันหลายหน้า ถ้าเขียน utility ยาว ๆ
+   ซ้ำทุกที่ วันหนึ่งมันจะเพี้ยนจากกันทีละนิดจนไม่เหมือนระบบเดียวกัน
+   ───────────────────────────────────────────────────────────────── */
+@layer components {
+  /* พื้นผิวของ "ของที่ลอยอยู่" — การ์ด แผง กล่องลอย */
+  .csmju-surface {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--elevation-sm);
+  }
+
+  /* การ์ดที่กดได้ — ยกขึ้นเล็กน้อยตอนชี้ ให้รู้ว่าโต้ตอบได้ */
+  .csmju-card-interactive {
+    transition:
+      box-shadow 200ms var(--ease-csmju),
+      transform 200ms var(--ease-csmju),
+      border-color 200ms var(--ease-csmju);
+  }
+
+  .csmju-card-interactive:hover {
+    box-shadow: var(--elevation-md);
+    border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
+    transform: translateY(-0.0625rem);
+  }
+
+  /* ตราสัญลักษณ์และปุ่มหลัก — จุดเดียวในหน้าที่ใช้ไล่สี
+     ถ้าใช้หลายที่ มันจะเลิกเป็นจุดเด่นทันที */
+  .csmju-brand {
+    background: var(--csmju-gradient);
+    color: rgb(255 255 255);
+  }
+
+  /* แถบบนแบบกระจกฝ้า — เนื้อหาเลื่อนผ่านข้างหลังได้แบบเบลอ ๆ */
+  .csmju-glass {
+    background: color-mix(in srgb, var(--background) 78%, transparent);
+    backdrop-filter: blur(0.75rem) saturate(1.6);
+    -webkit-backdrop-filter: blur(0.75rem) saturate(1.6);
+  }
+
+  /* เส้นคั่นภายในการ์ดเดียวกัน บางกว่าขอบการ์ด */
+  .csmju-hairline {
+    border-color: var(--hairline);
+  }
+
+  /* แถบบอกตำแหน่งปัจจุบันในเมนู — ขีดโค้งด้านซ้าย */
+  .csmju-nav-item {
+    position: relative;
+    transition:
+      background-color 180ms var(--ease-csmju),
+      color 180ms var(--ease-csmju);
+  }
+
+  .csmju-nav-item[data-active='true']::before {
+    content: '';
+    position: absolute;
+    inset-block: 0.375rem;
+    inset-inline-start: -0.5rem;
+    width: 0.1875rem;
+    border-radius: 9999px;
+    background: var(--csmju-gradient);
+  }
+}
+/* เคารพการตั้งค่า "ลดการเคลื่อนไหว" ของระบบปฏิบัติการ
+ *
+ * ผู้ใช้ที่มีอาการเวียนศีรษะจากการเคลื่อนไหว (vestibular disorder) ตั้งค่านี้
+ * ไว้ที่ระบบ แล้วคาดหวังว่าทุกเว็บจะเคารพมัน — ก่อนหน้านี้ทั้งโปรเจกต์ไม่มี
+ * จุดไหนเคารพเลย ทั้งสปริงของ framer-motion จุดกะพริบของสายเรียกเข้า
+ * และแถบความคืบหน้าของสตอรี่
+ *
+ * ไม่ตั้งเป็น 0s เพราะ transitionend/animationend จะไม่ยิง แล้วโค้ดที่รอ
+ * event นั้นอยู่จะค้าง — 0.01ms สั้นจนมองไม่เห็นแต่ยังยิง event ตามปกติ
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ข้อความสำหรับโปรแกรมอ่านหน้าจอ **ต้องไม่ยืดความสูงของหน้า**
+ *
+ * `sr-only` ของ Tailwind เป็น position:absolute โดยไม่กำหนดพิกัด เบราว์เซอร์
+ * จึงวางมันไว้ที่ "ตำแหน่งเดิมในเนื้อหา" เทียบกับกล่องแรกที่ถูกจัดตำแหน่ง
+ * ถ้าไม่มีกล่องแบบนั้นเลย มันจะหลุดออกจากกรอบเลื่อนของ <main> ไปอยู่ระดับ
+ * ทั้งหน้า — ปุ่มอิโมจิใต้โพสต์ที่ลึก 2,000px ทำให้ทั้งหน้าเลื่อนลงไปเจอ
+ * พื้นที่ว่างสีพื้นหลังได้ (บั๊กจริง 29 ก.ย. 2569: หน้า 854px ยืดเป็น 2,247px)
+ *
+ * กำหนดพิกัดให้ชัด = ไม่ใช้ตำแหน่งเดิมอีกต่อไป จึงไม่มีทางยืดหน้าได้อีก
+ * ไม่ว่าจะไปอยู่ในกล่องไหน
+ */
+.sr-only {
+  inset-block-start: 0;
+  inset-inline-start: 0;
+}
+
+/* ── แถบซ้ายแบบ Instagram ────────────────────────────────────────────
+ *
+ * ปกติแคบ 72px เห็นแต่ไอคอน · ชี้เมาส์ (หรือ Tab มาด้วยคีย์บอร์ด หรือเปิดเมนูอยู่)
+ * แล้วขยายเป็น 248px พร้อมชื่อเมนู **ลอยทับเนื้อหา ไม่ดันหน้า** แบบเดียวกับ
+ * Instagram ปี 2025 — เนื้อหาไม่กระตุกทุกครั้งที่เมาส์ผ่าน
+ *
+ * ชื่อเมนูซ่อนด้วย visibility ไม่ใช่แค่ opacity เพราะตัวอักษรที่โปร่งใสยังรับ
+ * เมาส์อยู่ ชี้ที่ว่างข้างแถบแล้วแถบจะขยายเองทั้งที่ไม่ได้ตั้งใจ
+ */
+@layer components {
+  /* ความสูงของแต่ละปุ่มหดตามความสูงจอ — จอโน้ตบุ๊กที่ตั้งสเกล 125% เหลือพื้นที่
+     จริงราว 700px ถ้าคงไว้ 48px ปุ่ม ≡ ล่างสุดหลุดขอบจอ (พบ 30 ก.ย. 2569) */
+  .csmju-rail {
+    --rail-item-h: clamp(2.125rem, 5.4dvh, 3rem);
+    padding-block: clamp(0.75rem, 3dvh, 1.5rem) clamp(0.5rem, 2.5dvh, 1.25rem);
+    width: 4.5rem;
+    transition: width 220ms var(--ease-csmju), box-shadow 220ms;
+  }
+
+  .csmju-rail:hover,
+  .csmju-rail:has(:focus-visible),
+  .csmju-rail[data-expanded='true'] {
+    width: 15.5rem;
+  }
+
+  .csmju-rail-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    height: var(--rail-item-h, 3rem);
+    flex-shrink: 0;
+    padding-inline: 0.75rem;
+    border-radius: 0.5rem;
+    color: var(--sidebar-foreground);
+    font-size: 1rem;
+    transition: background-color 150ms;
+  }
+
+  .csmju-rail-brand {
+    height: clamp(2.5rem, 7dvh, 3.5rem);
+    margin-bottom: clamp(0.25rem, 3.5dvh, 2rem);
+  }
+
+  .csmju-rail-item:hover {
+    background: var(--sidebar-accent);
+  }
+
+  .csmju-rail-item:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+  }
+
+  .csmju-rail-item > svg,
+  .csmju-rail-icon {
+    flex-shrink: 0;
+    transition: transform 150ms var(--ease-csmju);
+  }
+
+  .csmju-rail-item:active > svg,
+  .csmju-rail-item:active .csmju-rail-icon {
+    transform: scale(0.9);
+  }
+
+  /* หน้าที่อยู่ = ไอคอนเส้นหนา + ชื่อตัวหนา สีเดียวกับตัวอักษร แบบ Instagram */
+  .csmju-rail-item[data-active='true'] {
+    font-weight: 700;
+  }
+
+  .csmju-rail-label {
+    visibility: hidden;
+    opacity: 0;
+    white-space: nowrap;
+    transition: opacity 120ms, visibility 0s linear 120ms;
+  }
+
+  .csmju-rail:hover .csmju-rail-label,
+  .csmju-rail:has(:focus-visible) .csmju-rail-label,
+  .csmju-rail[data-expanded='true'] .csmju-rail-label {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 180ms 60ms, visibility 0s;
+  }
+
+  /* เลขแจ้งเตือนสีแดงที่มุมไอคอน */
+  .csmju-rail-badge {
+    position: absolute;
+    left: 1.75rem;
+    top: 0.3rem;
+    display: grid;
+    place-items: center;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    padding-inline: 0.3rem;
+    border-radius: 9999px;
+    background: var(--badge);
+    color: white;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: 0 0 0 2px var(--sidebar);
+  }
+
+  /* วงแหวนสตอรี่/รูปโปรไฟล์ — ไล่สีเดียวกับวงแหวนสตอรี่ของระบบ */
+  .csmju-story-ring {
+    background: conic-gradient(
+      from 210deg,
+      var(--csmju-story-ring-3),
+      var(--csmju-story-ring-2),
+      var(--csmju-story-ring-1),
+      var(--csmju-story-ring-3)
+    );
+    padding: 2px;
+    border-radius: 9999px;
+  }
+}
