@@ -37,15 +37,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /// audit log ที่นับเป็น "ประวัติบัญชี" — รายการปิด ไม่ใช่ทุก action ของผู้เรียก
 ///
 /// การกระทำเชิงผู้ดูแล (ปิดรายงาน เปลี่ยนสิทธิ์คนอื่น) ไม่ใช่ประวัติของบัญชีตัวเอง
-const HISTORY_ACTIONS = [
-  'profile.bio_change',
-  'profile.cover_change',
-  'profile.website_change',
-  'post.delete',
-  'reel.delete',
-  'story.delete',
-  'channel.create',
-] as const;
+type HistoryAction =
+  | 'profile.bio_change'
+  | 'profile.cover_change'
+  | 'profile.website_change'
+  | 'post.delete'
+  | 'reel.delete'
+  | 'story.delete'
+  | 'channel.create';
 
 /// "กิจกรรมของคุณ" แบบ Instagram — ของที่ผู้เรียกทำไว้เอง เห็นได้เฉพาะเจ้าของ
 ///
@@ -687,7 +686,7 @@ function toHistoryItem(row: AuditLogModel): AccountHistoryItemDto {
   const meta = (row.metadata ?? {}) as Record<string, unknown>;
   const base = { id: row.id, createdAt: row.createdAt.toISOString() };
 
-  switch (row.action as (typeof HISTORY_ACTIONS)[number]) {
+  switch (row.action as HistoryAction) {
     case 'profile.bio_change': {
       const next = typeof meta.new === 'string' && meta.new !== '' ? meta.new : null;
 
