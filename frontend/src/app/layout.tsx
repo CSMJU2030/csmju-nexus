@@ -1,23 +1,30 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Sans_Thai } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const geistSans = Geist({
+// ฟอนต์เก็บไว้ใน repo (app/fonts · สัญญาอนุญาต OFL แนบไว้ข้างไฟล์) แทน next/font/google
+// · next/font/google ดาวน์โหลดจาก Google ตอน build — CI ของ org เคยล้มเพราะดึงไม่ได้
+//   ("Can't resolve '@vercel/turbopack-next/internal/font/google/font'")
+// · ui-design-system ของ PM ห้ามใช้ next/font/google อยู่แล้ว
+// ทั้งสามไฟล์เป็น variable font จึงระบุช่วงน้ำหนักแทนรายการน้ำหนัก
+const geistSans = localFont({
+  src: "./fonts/Geist-Variable.ttf",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  weight: "100 900",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/GeistMono-Variable.ttf",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
 });
 
 // Geist ไม่มีอักขระไทย — UI ทั้งระบบเป็นภาษาไทย จึงต้องมีฟอนต์ที่ครอบคลุม
 // ไม่งั้นเบราว์เซอร์จะเลือกฟอนต์ระบบมาแทนเอง ซึ่งควบคุมหน้าตาไม่ได้
-const notoThai = Noto_Sans_Thai({
+const notoThai = localFont({
+  src: "./fonts/NotoSansThai-Variable.ttf",
   variable: "--font-noto-thai",
-  subsets: ["thai", "latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "100 900",
 });
 
 export const metadata: Metadata = {
