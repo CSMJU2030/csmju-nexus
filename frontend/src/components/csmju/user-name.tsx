@@ -15,6 +15,25 @@ import type { ProfileSummary } from '@/lib/csmju/types';
 /// (`GET /profiles?coreUserIds=a,b,c`) ด้วยการหน่วง 20 มิลลิวินาที ซึ่งสั้นพอ
 /// ที่ผู้ใช้ไม่รู้สึก แต่นานพอให้ทุกตัวใน render รอบเดียวกันมารวมกันทัน
 const cache = new Map<string, ProfileSummary>();
+
+/// ชื่อที่ใช้แทนตอนยังไม่รู้ชื่อ — **ห้ามแสดง coreUserId ให้ผู้ใช้เห็นแทนชื่อ**
+///
+/// coreUserId จาก Core Hub ตัวจริงเป็น UUID (`e2b39ea5-d4ff-…`) ไม่ใช่รหัสที่คนอ่านออก
+/// เดิมทุกจุดที่ยังโหลดชื่อไม่เสร็จ หรือหลังบ้านไม่มีชื่อในแคช (หลังบ้านคืน
+/// displayName = coreUserId) โชว์ UUID ตรง ๆ ทั้งหัวแชท รายชื่อ และ tooltip
+export const UNKNOWN_NAME = 'ผู้ใช้';
+
+/// ชื่อที่แสดงได้จริง — ว่าง หรือเป็น coreUserId (ยังไม่มีชื่อในแคช) = ยังไม่รู้ชื่อ
+export function shownName(coreUserId: string, displayName: string | null | undefined): string {
+  const name = displayName?.trim();
+
+  return name && name !== coreUserId ? name : UNKNOWN_NAME;
+}
+
+/// รู้ชื่อจริงของคนนี้หรือยัง (ไม่ใช่ชื่อสำรอง)
+export function hasKnownName(profile: ProfileSummary): boolean {
+  return profile.displayName !== UNKNOWN_NAME;
+}
 const waiting = new Set<string>();
 const listeners = new Set<() => void>();
 
@@ -40,7 +59,7 @@ function scheduleFlush() {
       )
       .then((rows) => {
         for (const row of rows) {
-          cache.set(row.coreUserId, row);
+          cache.set(row.coreUserId, { ...row, displayName: shownName(row.coreUserId, row.displayName) });
         }
 
         for (const notify of listeners) {
@@ -48,11 +67,11 @@ function scheduleFlush() {
         }
       })
       .catch(() => {
-        // ถ้าดึงไม่ได้ ปล่อยให้แสดง coreUserId ไปก่อน — ดีกว่าช่องว่าง
+        // ถ้าดึงไม่ได้ ใช้ชื่อสำรองไปก่อน — ดีกว่าช่องว่าง และห้ามเป็น UUID
         for (const name of batch) {
           cache.set(name, {
             coreUserId: name,
-            displayName: name,
+            displayName: UNKNOWN_NAME,
             avatarUrl: null,
             syncedAt: null,
             badge: null,
@@ -88,7 +107,7 @@ export function useProfile(coreUserId: string): ProfileSummary {
   return (
     cache.get(coreUserId) ?? {
       coreUserId,
-      displayName: coreUserId,
+      displayName: UNKNOWN_NAME,
       avatarUrl: null,
       syncedAt: null,
       badge: null,
@@ -110,7 +129,6 @@ export function UserName({
     <Link
       href={`/profile/${encodeURIComponent(coreUserId)}`}
       className={`inline-flex items-center gap-1 font-medium hover:underline ${className}`}
-      title={coreUserId}
     >
       {profile.displayName}
       <VerifiedBadge badge={profile.badge} className="size-3.5" />

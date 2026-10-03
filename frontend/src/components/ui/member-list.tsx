@@ -18,6 +18,7 @@ import {
 } from '@/components/csmju/user-badge';
 import { api, ApiError, qs } from '@/lib/csmju/api';
 import { useMe } from '@/lib/csmju/session';
+import { shownName } from '@/components/csmju/user-name';
 import type { Layer2Role, ProfileSummary } from '@/lib/csmju/types';
 
 /// รายชื่อสมาชิกของระบบย่อยสำหรับผู้ดูแล
@@ -258,17 +259,13 @@ export default function MemberList() {
 
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-                    {profile?.displayName ?? member.coreUserId}
+                    {shownName(member.coreUserId, profile?.displayName)}
                     <VerifiedBadge badge={badgeFor(member.layer2Role)} />
                     {online.has(member.coreUserId) && (
                       <span className="text-[11px] font-normal text-success">
                         ออนไลน์
                       </span>
                     )}
-                  </p>
-
-                  <p className="truncate font-mono text-[11px] text-muted-foreground">
-                    {member.coreUserId}
                   </p>
 
                   <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -296,7 +293,7 @@ export default function MemberList() {
                       // ไม่มีชื่อ = โปรแกรมอ่านหน้าจออ่านว่า "กล่องตัวเลือก"
                       // เฉย ๆ ในหน้าที่มีสมาชิกหลายสิบคน ผู้ใช้จึงไม่รู้ว่า
                       // กำลังเปลี่ยนสิทธิ์ของใครอยู่
-                      aria-label={`สิทธิ์ของ ${member.coreUserId}`}
+                      aria-label={`สิทธิ์ของ ${shownName(member.coreUserId, profile?.displayName)}`}
                       className="rounded-lg border border-input bg-background px-2 py-1 text-xs"
                     >
                       <option value="GUEST">สมาชิกทั่วไป</option>

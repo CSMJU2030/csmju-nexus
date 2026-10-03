@@ -47,7 +47,7 @@ import {
 import { ConfirmDialog } from '@/components/csmju/messages-menu';
 import { showToast, ToastHost } from '@/components/csmju/messages-toast';
 import { useOnline } from '@/components/csmju/user-badge';
-import { useProfile } from '@/components/csmju/user-name';
+import { hasKnownName, useProfile } from '@/components/csmju/user-name';
 import { api, ApiError, qs } from '@/lib/csmju/api';
 import { useMe } from '@/lib/csmju/session';
 import {
@@ -61,7 +61,7 @@ import {
 } from '@/lib/csmju/socket';
 import { igAgo } from '@/lib/csmju/time';
 import { uploadFile, type UploadedAsset } from '@/lib/csmju/upload';
-import type { Channel, Message, ReactionSummary } from '@/lib/csmju/types';
+import type { Channel, Message, ProfileSummary, ReactionSummary } from '@/lib/csmju/types';
 import { isStaffLike } from '@/lib/csmju/roles';
 
 /// บทสนทนาส่วนตัวแบบ Instagram Direct — หัว · ข้อความ · ช่องพิมพ์
@@ -1372,6 +1372,7 @@ function ThreadHeader({
   const me = useMe();
   const online = useOnline(peer ?? '');
   const presence = usePresence(peer);
+  const peerProfile = useProfile(peer ?? '');
   const { startCall, inCall } = useCall();
   const dock = variant === 'dock';
   const group = channel.kind === 'GROUP_DM';
@@ -1379,6 +1380,9 @@ function ThreadHeader({
 
   // บรรทัดรองบอกสิ่งที่เป็นจริงตอนนี้ เรียงตามความสำคัญ: กำลังพิมพ์ →
   // การเชื่อมต่อของเราเอง (ถ้ามีปัญหา) → อีกฝ่ายออนไลน์ → ชื่อผู้ใช้/จำนวนคน
+  //
+  // "ชื่อผู้ใช้" คือชื่อที่แสดงจากแคชโปรไฟล์ (ส่วนหน้าของอีเมล เช่น somsak.j)
+  // แบบที่ Instagram โชว์ username — เดิมเป็น coreUserId ซึ่งจาก Core Hub จริงคือ UUID
   const secondary = typing
     ? 'กำลังพิมพ์…'
     : status === 'connecting'
@@ -1391,7 +1395,9 @@ function ThreadHeader({
             ? 'กำลังใช้งาน'
             : presence?.lastActiveAt
               ? activeAgo(presence.lastActiveAt)
-              : (peer ?? `${channel.memberCount} คน`);
+              : peer
+                ? peerHandle(peerProfile)
+                : `${channel.memberCount} คน`;
 
   const others = othersOf(channel, me.id);
   const callees: string | string[] | null = group ? (others.length ? others : null) : peer;
@@ -1525,6 +1531,7 @@ function PeerIntro({
   compact: boolean;
 }) {
   const memberCount = channel.memberCoreUserIds?.length ?? channel.memberCount;
+  const peerProfile = useProfile(peer ?? '');
 
   return (
     <div className="flex flex-col items-center pb-6 pt-4 text-center">
@@ -1535,7 +1542,9 @@ function PeerIntro({
 
       {peer ? (
         <>
-          <p className="text-sm text-muted-foreground">{peer} · CS Nexus</p>
+          <p className="text-sm text-muted-foreground">
+            {hasKnownName(peerProfile) ? `${peerProfile.displayName} · CS Nexus` : 'บัญชี CS Nexus'}
+          </p>
           <Link
             href={`/profile/${encodeURIComponent(peer)}`}
             className="mt-4 rounded-lg bg-muted px-4 py-1.5 text-sm font-semibold transition-colors hover:bg-accent"
@@ -1594,4 +1603,10 @@ function RequestBanner({ channel, onGone }: { channel: Channel; onGone?: () => v
       <RequestActions channel={channel} onGone={onGone} className="mt-2 justify-center" />
     </div>
   );
+}
+
+/// ชื่อผู้ใช้ของคู่สนทนาแบบบรรทัดรองของ Instagram — ไม่รู้ชื่อ (ยังไม่เคยเข้าระบบนี้)
+/// ก็บอกแค่ว่าเป็นบัญชีของระบบนี้ **ห้ามแสดง coreUserId**
+function peerHandle(profile: ProfileSummary): string {
+  return hasKnownName(profile) ? profile.displayName : 'บัญชี CS Nexus';
 }

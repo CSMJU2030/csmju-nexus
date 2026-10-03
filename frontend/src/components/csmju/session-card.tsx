@@ -65,8 +65,7 @@ export function SessionCard() {
         <span className="min-w-0 flex-1 leading-tight">
           <span
             className="block truncate text-csmju-label font-medium"
-            // รหัสผู้ใช้กลาง (`sub`) ไว้อ้างอิงตอนแจ้งปัญหา
-            title={`${me.email} · รหัสผู้ใช้กลาง ${me.id}`}
+            title={me.email}
           >
             {me.email}
           </span>

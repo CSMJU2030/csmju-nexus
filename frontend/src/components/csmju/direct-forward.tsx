@@ -284,7 +284,6 @@ function PersonOption({
       onToggle={onToggle}
       avatar={<Avatar coreUserId={coreUserId} size={44} showOnline={false} />}
       title={profile.displayName}
-      subtitle={coreUserId}
     />
   );
 }
@@ -300,7 +299,8 @@ function Option({
   onToggle: () => void;
   avatar: ReactNode;
   title: ReactNode;
-  subtitle: string;
+  /// ไม่ส่ง = บรรทัดเดียว (คนไม่มีบรรทัดรอง — ห้ามใช้ coreUserId แทน)
+  subtitle?: string;
 }) {
   return (
     <button
@@ -314,7 +314,7 @@ function Option({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold">{title}</span>
-        <span className="block truncate text-sm text-muted-foreground">{subtitle}</span>
+        {subtitle && <span className="block truncate text-sm text-muted-foreground">{subtitle}</span>}
       </span>
       <span
         aria-hidden

@@ -9,11 +9,12 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Avatar } from '@/components/csmju/user-name';
+import { Avatar, shownName } from '@/components/csmju/user-name';
 import { profileKey, type ProfileData } from '@/components/csmju/profile-data';
 import { useCharacterLimit } from '@/components/ui/dialog-utils/use-character-limit';
 import { useImageUpload } from '@/components/ui/dialog-utils/use-image-upload';
 import { api } from '@/lib/csmju/api';
+import { useMe } from '@/lib/csmju/session';
 import { uploadFile } from '@/lib/csmju/upload';
 import type { MyProfile } from '@/lib/csmju/types';
 
@@ -94,6 +95,7 @@ export function ProfileSettingsForm({
   suggestions?: { value: boolean; save: (next: boolean) => Promise<void> };
 }) {
   const id = useId();
+  const me = useMe();
   const queryClient = useQueryClient();
 
   const [busy, setBusy] = useState<string | null>(null);
@@ -192,8 +194,8 @@ export function ProfileSettingsForm({
         </span>
 
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-base font-bold">{profile.coreUserId}</p>
-          <p className="truncate text-csmju-label text-muted-foreground">{profile.displayName}</p>
+          <p className="truncate text-base font-bold">{shownName(profile.coreUserId, profile.displayName)}</p>
+          <p className="truncate text-csmju-label text-muted-foreground">{me.email}</p>
         </div>
 
         <button

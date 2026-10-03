@@ -93,6 +93,8 @@ export function FollowListDialog({
   kind: FollowListKind | null;
   onClose: () => void;
 }) {
+  const owner = useProfile(coreUserId);
+
   return (
     <Dialog open={kind !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-[400px] rounded-xl border-0 bg-card">
@@ -101,7 +103,7 @@ export function FollowListDialog({
         </DialogTitle>
 
         <DialogDescription className="sr-only">
-          รายชื่อ{kind ? TITLES[kind] : ''}ของ {coreUserId}
+          รายชื่อ{kind ? TITLES[kind] : ''}ของ {owner.displayName}
         </DialogDescription>
 
         {kind && <FollowList coreUserId={coreUserId} kind={kind} onNavigate={onClose} />}
@@ -237,9 +239,11 @@ export function PersonRow({
         >
           {profile.displayName}
         </Link>
-        <span className="block truncate text-csmju-label font-normal text-muted-foreground">
-          {error ?? caption ?? coreUserId}
-        </span>
+        {(error ?? caption) && (
+          <span className="block truncate text-csmju-label font-normal text-muted-foreground">
+            {error ?? caption}
+          </span>
+        )}
       </span>
 
       {coreUserId !== me.id && following !== null && (

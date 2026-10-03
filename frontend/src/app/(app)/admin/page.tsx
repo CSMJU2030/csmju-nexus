@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, ShieldAlert, Trash } from 'lucide-react';
+import { UserName } from '@/components/csmju/user-name';
 import MemberList from '@/components/ui/member-list';
 import { api, ApiError } from '@/lib/csmju/api';
 import { isStaffLike } from '@/lib/csmju/roles';
@@ -287,7 +288,9 @@ function Reports() {
                   {report.targetKind}
                 </span>
                 <span className="font-mono">{report.targetId.slice(0, 8)}…</span>
-                <span>แจ้งโดย {report.reporterCoreUserId}</span>
+                <span>
+                  แจ้งโดย <UserName coreUserId={report.reporterCoreUserId} />
+                </span>
                 <span className="ml-auto">
                   {new Date(report.createdAt).toLocaleString('th-TH')}
                 </span>

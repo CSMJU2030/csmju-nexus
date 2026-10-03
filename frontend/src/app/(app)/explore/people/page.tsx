@@ -79,9 +79,8 @@ function SuggestionRow({ row }: { row: Suggestion }) {
           href={`/profile/${encodeURIComponent(row.coreUserId)}`}
           className="block truncate text-csmju-label font-semibold hover:underline"
         >
-          {row.coreUserId}
+          {profile.displayName}
         </Link>
-        <span className="block truncate text-csmju-label text-muted-foreground">{profile.displayName}</span>
         <span className="block truncate text-csmju-caption text-muted-foreground">
           <SuggestionCaption row={row} />
         </span>
