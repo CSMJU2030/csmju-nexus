@@ -377,7 +377,6 @@ function MemberRow({ coreUserId, isMe }: { coreUserId: string; isMe: boolean }) 
           {profile.displayName}
           {isMe ? ' (คุณ)' : ''}
         </span>
-        <span className="block truncate text-xs text-muted-foreground">{coreUserId}</span>
       </Link>
 
       {!isMe && following.data && (
@@ -642,8 +641,7 @@ function NicknameRow({ channel, coreUserId }: { channel: Channel; coreUserId: st
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold">{current || profile.displayName}</span>
         <span className="block truncate text-xs text-muted-foreground">
-          {coreUserId}
-          {current ? ` · ${profile.displayName}` : ' · ตั้งชื่อเล่น'}
+          {current ? profile.displayName : 'ตั้งชื่อเล่น'}
         </span>
       </span>
     </button>

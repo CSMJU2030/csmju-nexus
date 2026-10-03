@@ -1,7 +1,21 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { StoryViewer, type Story } from './story-viewer';
+
+// ชื่อมาจากแคชโปรไฟล์ — coreUserId จริงเป็น UUID ที่ห้ามขึ้นจอ
+vi.mock('@/components/csmju/user-name', () => ({
+  useProfile: (coreUserId: string) => ({
+    coreUserId,
+    displayName: coreUserId === 'a1b2c3d4-0000-4000-8000-000000000001' ? 'สมศักดิ์' : 'ผู้ใช้',
+    avatarUrl: null,
+    syncedAt: null,
+    badge: null,
+  }),
+}));
+
+const { StoryViewer } = await import('./story-viewer');
+type Story = import('./story-viewer').Story;
+const SOMSAK = 'a1b2c3d4-0000-4000-8000-000000000001';
 
 /// เทสต์ของตัวเล่นสตอรี่
 ///
@@ -24,7 +38,7 @@ function open() {
 
 describe('StoryViewer', () => {
   it('เปิดแล้วแสดงสตอรี่ชิ้นแรก', async () => {
-    render(<StoryViewer stories={stories} coreUserId="สมศักดิ์" />);
+    render(<StoryViewer stories={stories} coreUserId={SOMSAK} />);
 
     await open();
 
@@ -36,7 +50,7 @@ describe('StoryViewer', () => {
   });
 
   it('กดฝั่งขวาแล้วไปชิ้นถัดไป', async () => {
-    render(<StoryViewer stories={stories} coreUserId="สมศักดิ์" />);
+    render(<StoryViewer stories={stories} coreUserId={SOMSAK} />);
 
     await open();
     await userEvent.click(screen.getByRole('button', { name: 'ไปต่อ' }));
@@ -53,7 +67,7 @@ describe('StoryViewer', () => {
     render(
       <StoryViewer
         stories={stories}
-        coreUserId="สมศักดิ์"
+        coreUserId={SOMSAK}
         onAllStoriesViewed={onAllStoriesViewed}
       />,
     );
@@ -86,7 +100,7 @@ describe('StoryViewer', () => {
     const { rerender } = render(
       <StoryViewer
         stories={stories}
-        coreUserId="สมศักดิ์"
+        coreUserId={SOMSAK}
         onStoryView={onStoryView}
       />,
     );
@@ -99,7 +113,7 @@ describe('StoryViewer', () => {
     rerender(
       <StoryViewer
         stories={stories}
-        coreUserId="สมศักดิ์"
+        coreUserId={SOMSAK}
         onStoryView={(story, index) => onStoryView(story, index)}
       />,
     );
@@ -107,7 +121,7 @@ describe('StoryViewer', () => {
     rerender(
       <StoryViewer
         stories={stories}
-        coreUserId="สมศักดิ์"
+        coreUserId={SOMSAK}
         onStoryView={(story, index) => onStoryView(story, index)}
       />,
     );
@@ -116,7 +130,7 @@ describe('StoryViewer', () => {
   });
 
   it('ปุ่มลูกศรและ Escape ใช้ได้', async () => {
-    render(<StoryViewer stories={stories} coreUserId="สมศักดิ์" />);
+    render(<StoryViewer stories={stories} coreUserId={SOMSAK} />);
 
     await open();
 
@@ -144,7 +158,7 @@ describe('StoryViewer', () => {
     render(
       <StoryViewer
         stories={stories}
-        coreUserId="สมศักดิ์"
+        coreUserId={SOMSAK}
         onMediaError={onMediaError}
       />,
     );
@@ -162,7 +176,7 @@ describe('StoryViewer', () => {
   });
 
   it('ไม่มีสตอรี่ = กดปุ่มไม่ได้', () => {
-    render(<StoryViewer stories={[]} coreUserId="สมศักดิ์" />);
+    render(<StoryViewer stories={[]} coreUserId={SOMSAK} />);
 
     expect(screen.getByRole('button', { name: /ดูสตอรี่ของ/ })).toBeDisabled();
   });

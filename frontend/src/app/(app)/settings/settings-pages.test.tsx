@@ -20,7 +20,8 @@ vi.mock('@/lib/csmju/api', () => ({
   api: { get: apiGet, list: apiList, patch: apiPatch, put: apiPut, del: apiDel },
   ApiError: class extends Error {},
 }));
-vi.mock('@/components/csmju/user-name', () => ({
+vi.mock('@/components/csmju/user-name', async (original) => ({
+  ...(await original<typeof import('@/components/csmju/user-name')>()),
   Avatar: () => <span />,
   useProfile: (coreUserId: string) => ({ coreUserId, displayName: `ชื่อ ${coreUserId}` }),
 }));

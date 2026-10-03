@@ -254,7 +254,8 @@ export function UserAvatar({
   className?: string;
 }) {
   const online = useOnline(coreUserId);
-  const name = displayName ?? coreUserId;
+  // ไม่มีชื่อ = '?' ไม่ใช่ตัวแรกของ coreUserId (UUID ขึ้นต้นด้วยตัวอักษรสุ่ม)
+  const name = displayName ?? '';
 
   return (
     <span className={cn('relative inline-block shrink-0', className)}>

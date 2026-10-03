@@ -14,7 +14,11 @@ const apiPatch = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/csmju/api', () => ({ api: { patch: apiPatch } }));
 vi.mock('@/lib/csmju/upload', () => ({ uploadFile: vi.fn() }));
-vi.mock('@/components/csmju/user-name', () => ({
+vi.mock('@/lib/csmju/session', () => ({
+  useMe: () => ({ id: 'user-002', email: 'student@core.local', coreRole: 'student', subsystemRole: 'GUEST' }),
+}));
+vi.mock('@/components/csmju/user-name', async (original) => ({
+  ...(await original<typeof import('@/components/csmju/user-name')>()),
   Avatar: ({ coreUserId }: { coreUserId: string }) => <span>{coreUserId}</span>,
 }));
 

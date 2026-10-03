@@ -831,8 +831,7 @@ function ViewerItem({ row }: { row: ViewerRow }) {
     <li className="flex items-center gap-3">
       <Avatar coreUserId={id} size={44} showOnline={false} />
       <span className="min-w-0 flex-1 leading-tight">
-        <span className="block truncate text-csmju-label font-semibold">{id}</span>
-        <span className="block truncate text-csmju-label text-muted-foreground">{profile.displayName}</span>
+        <span className="block truncate text-csmju-label font-semibold">{profile.displayName}</span>
       </span>
       <time dateTime={row.viewedAt} className="shrink-0 text-csmju-caption text-muted-foreground">
         {igAgo(row.viewedAt)}

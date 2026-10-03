@@ -38,7 +38,8 @@ vi.mock('@/components/csmju/user-badge', () => ({
   useOnline: () => true,
 }));
 
-vi.mock('@/components/csmju/user-name', () => ({
+vi.mock('@/components/csmju/user-name', async (original) => ({
+  ...(await original<typeof import('@/components/csmju/user-name')>()),
   useProfile: (id: string) => ({ coreUserId: id, displayName: 'สมชาย', avatarUrl: null, badge: null }),
 }));
 
