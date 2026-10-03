@@ -29,6 +29,7 @@ import { MemberList } from '@/components/csmju/member-list';
 import { showToast } from '@/components/csmju/messages-toast';
 import { PinnedPopover } from '@/components/csmju/pinned-popover';
 import { ManageRoomDialog } from '@/components/csmju/room-dialogs';
+import { InviteMembersButton } from '@/components/csmju/room-invite';
 import { RoomPopover } from '@/components/csmju/room-popover';
 import { UserPopover } from '@/components/csmju/user-popover';
 import { Avatar, useProfile } from '@/components/csmju/user-name';
@@ -57,6 +58,7 @@ import {
   type ReactionBroadcast,
 } from './chat-logic';
 import { isStaffLike } from '@/lib/csmju/roles';
+import { canInviteMembers } from '@/lib/csmju/room-permissions';
 
 const PAGE_SIZE = 50;
 const MEMBERS_PREF = 'csmju:room-members-open';
@@ -86,6 +88,7 @@ export function TextChannel({
   onRead,
   onUpdated,
   onDeleted,
+  onRemoved,
   onOpenChannel,
 }: {
   channel: Channel;
@@ -96,6 +99,8 @@ export function TextChannel({
   onRead: () => void;
   onUpdated: (channel: Pick<Channel, 'id' | 'name' | 'description'> & { muted?: boolean }) => void;
   onDeleted: (channelId: string, byMe: boolean) => void;
+  /// ผู้ใช้ไม่ได้อยู่ในห้องนี้แล้ว — ออกเอง (left) หรือผู้ดูแลห้องนำออก (kicked)
+  onRemoved: (channelId: string, reason: 'left' | 'kicked') => void;
   /// เปิดห้องอื่นจากผลค้นหา (พร้อมข้อความที่จะเลื่อนไปหา)
   onOpenChannel: (channelId: string, messageId?: string) => void;
 }) {
@@ -143,11 +148,13 @@ export function TextChannel({
 
   const onUpdatedRef = useRef(onUpdated);
   const onDeletedRef = useRef(onDeleted);
+  const onRemovedRef = useRef(onRemoved);
   const onReadRef = useRef(onRead);
 
   useEffect(() => {
     onUpdatedRef.current = onUpdated;
     onDeletedRef.current = onDeleted;
+    onRemovedRef.current = onRemoved;
     onReadRef.current = onRead;
   });
 
@@ -272,6 +279,16 @@ export function TextChannel({
               if (payload.channelId !== channel.id) return;
               forgetRoom(channel.id);
               onDeletedRef.current(channel.id, payload.deletedByCoreUserId === me.id);
+            },
+          ),
+          // ถูกนำออกจากห้อง (หรือกดออกจากแท็บอื่น) — หลังบ้านส่งก่อนเตะออกจากห้องของ socket
+          bindSocket<{ channelId: string; removed: string[]; byCoreUserId: string }>(
+            socket,
+            'channel:members',
+            (payload) => {
+              if (payload.channelId !== channel.id || !payload.removed.includes(me.id)) return;
+              forgetRoom(channel.id);
+              onRemovedRef.current(channel.id, payload.byCoreUserId === me.id ? 'left' : 'kicked');
             },
           ),
           bindSocket<{ channelId: string; coreUserId: string }>(socket, 'typing:sync', (payload) => {
@@ -612,6 +629,7 @@ export function TextChannel({
 
   const canPin = channel.myRole === 'MODERATOR' || isStaffLike(me.coreRole);
   const canModerate = channel.myRole === 'MODERATOR' || me.coreRole === 'admin';
+  const canInvite = canInviteMembers(channel, me.coreRole);
   const threads = timeline.filter((row) => row.replyCount > 0).reverse();
   const name = channel.name ?? 'ห้องไม่มีชื่อ';
 
@@ -688,6 +706,7 @@ export function TextChannel({
             >
               <Pin className="size-5" />
             </HeaderButton>
+            {canInvite && <InviteMembersButton channel={channel} />}
             <HeaderButton
               label={membersOpen ? 'ซ่อนรายชื่อสมาชิก' : 'แสดงรายชื่อสมาชิก'}
               active={membersOpen}
@@ -940,6 +959,22 @@ export function TextChannel({
       {membersOpen && !threadOf && (
         <MemberList
           channelId={channel.id}
+          channel={channel}
+          header={
+            canInvite && (
+              <InviteMembersButton
+                channel={channel}
+                className="mb-3 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                iconClassName="size-4"
+              >
+                เชิญสมาชิก
+              </InviteMembersButton>
+            )
+          }
+          onLeft={() => {
+            forgetRoom(channel.id);
+            onRemoved(channel.id, 'left');
+          }}
           onOpenUser={(id, rect, nickname) => setUserCard({ id, rect, nickname })}
         />
       )}

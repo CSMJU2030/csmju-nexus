@@ -28,6 +28,7 @@ export function VoiceChannelView({
   voice,
   hiddenOnMobile,
   onBack,
+  headerActions,
 }: {
   channel: Channel;
   occupants: VoiceOccupant[];
@@ -35,6 +36,8 @@ export function VoiceChannelView({
   voice: VoiceControls | null;
   hiddenOnMobile: boolean;
   onBack: () => void;
+  /// ปุ่มท้ายหัวห้อง (เช่น "เชิญสมาชิก") — ผู้เรียกตัดสินว่าใครเห็น
+  headerActions?: ReactNode;
 }) {
   const name = channel.name ?? 'ห้องเสียง';
   const connected = voice?.connectedChannelId === channel.id;
@@ -62,6 +65,7 @@ export function VoiceChannelView({
             {channel.description}
           </p>
         )}
+        {headerActions && <div className="ml-auto flex shrink-0 items-center gap-0.5">{headerActions}</div>}
       </header>
 
       {connected && voice ? (

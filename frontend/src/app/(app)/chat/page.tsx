@@ -12,7 +12,10 @@ import { VoiceConnectionPanel, VoiceUserControls } from '@/components/csmju/voic
 import { VoiceRoomStage } from '@/components/csmju/voice-room-stage';
 import { ToastHost } from '@/components/csmju/messages-toast';
 import { CreateRoomDialog } from '@/components/csmju/room-dialogs';
+import { InviteMembersButton } from '@/components/csmju/room-invite';
 import { api, ApiError } from '@/lib/csmju/api';
+import { canInviteMembers } from '@/lib/csmju/room-permissions';
+import { useMe } from '@/lib/csmju/session';
 import { bindSocket, connectSocket, onSocketReconnect } from '@/lib/csmju/socket';
 import type { Channel, VoiceSession } from '@/lib/csmju/types';
 import { groupChannels, isRoom } from './chat-logic';
@@ -70,6 +73,7 @@ function RoomsWorkspace() {
   const [liveOccupants, setLiveOccupants] = useState<Record<string, VoiceOccupantsPayload>>({});
   const queryClient = useQueryClient();
   const voiceRoom = useVoiceRoom();
+  const me = useMe();
 
   const { data: channels = [], isPending: loading, error: queryError } = useQuery({
     queryKey: CHANNELS_KEY,
@@ -265,6 +269,7 @@ function RoomsWorkspace() {
           }}
           hiddenOnMobile={mobilePane === 'list'}
           onBack={() => setMobilePane('list')}
+          headerActions={canInviteMembers(active, me.coreRole) && <InviteMembersButton channel={active} />}
         />
       ) : active ? (
         <TextChannel
@@ -294,6 +299,14 @@ function RoomsWorkspace() {
             removeChannel(
               channelId,
               byMe ? `ลบห้อง "${active.name ?? ''}" แล้ว` : `ห้อง "${active.name ?? ''}" ถูกลบโดยผู้ดูแลห้อง`,
+            )
+          }
+          onRemoved={(channelId, reason) =>
+            removeChannel(
+              channelId,
+              reason === 'left'
+                ? `ออกจากห้อง "${active.name ?? ''}" แล้ว`
+                : `คุณถูกนำออกจากห้อง "${active.name ?? ''}"`,
             )
           }
           onOpenChannel={(channelId, messageId) => select(channelId, messageId)}

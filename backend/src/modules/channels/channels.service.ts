@@ -62,6 +62,35 @@ export function canManageChannel(
   );
 }
 
+/// ใครนำสมาชิกคนอื่นออกจากห้องได้
+///
+///   สมาชิกธรรมดา        ใครเชิญคนเข้าได้ (`canAdministerChannel`) ก็เอาออกได้
+///   ผู้ดูแลห้อง          ต้องเป็นผู้สร้างห้องหรือผู้ดูแลระบบ — ผู้ดูแลด้วยกัน
+///                       เตะกันเองไม่ได้ ไม่งั้นคนที่ได้สิทธิ์ทีหลังยึดห้องได้
+///   ผู้สร้างห้อง         ผู้ดูแลระบบเท่านั้น
+///
+/// นำตัวเองออกไม่ได้ (ใช้ "ออกจากห้อง") และแชทส่วนตัวนำใครออกไม่ได้เลย
+/// หน้าบ้านเขียนกฎเดียวกันไว้ที่ frontend/src/lib/csmju/room-permissions.ts เพื่อซ่อนปุ่มที่กดไม่ได้
+export function canRemoveMember(
+  channel: { kind: string; createdByCoreUserId: string | null },
+  channelRole: string,
+  user: CoreHubUser,
+  target: { coreUserId: string; role: string },
+): boolean {
+  if (channel.kind === 'DM' || target.coreUserId === user.coreUserId) {
+    return false;
+  }
+
+  if (!canAdministerChannel(channelRole, user)) return false;
+  if (user.coreRole === 'admin') return true;
+  if (target.coreUserId === channel.createdByCoreUserId) return false;
+
+  return (
+    target.role !== 'MODERATOR' ||
+    channel.createdByCoreUserId === user.coreUserId
+  );
+}
+
 /// ห้องที่มีเรื่อง "คำขอข้อความ" และรายชื่อคู่สนทนา
 const DIRECT_KINDS: readonly string[] = ['DM', 'GROUP_DM'];
 
@@ -891,8 +920,24 @@ export class ChannelsService {
       skipDuplicates: true,
     });
 
+    const added = unique.filter((id) => !existing.has(id));
+
+    // แผงสมาชิกของคนที่เปิดห้องอยู่ต้องเห็นคนใหม่ทันที ไม่ใช่หลังรีเฟรช
+    if (added.length > 0) {
+      this.bus.pushToRoom({
+        room: channelId,
+        event: 'channel:members',
+        payload: {
+          channelId,
+          added,
+          removed: [],
+          byCoreUserId: user.coreUserId,
+        },
+      });
+    }
+
     await this.notifications.pushMany(
-      unique.filter((id) => !existing.has(id)),
+      added,
       {
         kind: 'CHANNEL_INVITE',
         refId: channelId,
@@ -1182,10 +1227,144 @@ export class ChannelsService {
       }
     });
 
+    // คนที่ยังอยู่ในห้องเห็นรายชื่อลดลงทันที — ส่งก่อนเตะ ไม่งั้นแท็บอื่น
+    // ของคนที่ออกเองจะไม่รู้ว่าออกไปแล้ว
+    this.bus.pushToRoom({
+      room: channelId,
+      event: 'channel:members',
+      payload: {
+        channelId,
+        added: [],
+        removed: [user.coreUserId],
+        byCoreUserId: user.coreUserId,
+      },
+    });
+
     // ลบแถวสมาชิกอย่างเดียวไม่พอ — socket ยังอยู่ในห้องของ socket.io
     // และการกระจายข้อความไม่ได้ตรวจสมาชิกซ้ำ อดีตสมาชิกจึงยังเห็นข้อความ
     // ใหม่แบบสดทุกข้อความ ทั้งที่กด "ออกจากห้อง" ไปแล้วและเปิดหน้าห้องไม่ได้
     this.bus.evictFromRoom({ room: channelId, coreUserId: user.coreUserId });
+  }
+
+  /// นำสมาชิกคนอื่นออกจากห้อง — คู่กับ addMembers
+  ///
+  /// คนที่เชิญคนเข้าได้ต้องเอาคนที่เชิญผิดออกได้ด้วย ไม่งั้นทางเดียวคือลบทั้งห้อง
+  /// กฎอยู่ที่ `canRemoveMember` ด้านบน (ผู้ดูแลห้องเอาผู้ดูแลด้วยกันออกไม่ได้)
+  ///
+  /// คนที่ถูกนำออกไม่ได้แจ้งเตือน — แบบเดียวกับ Discord/LINE ที่ไม่บอกว่าใครเอาออก
+  /// แต่ถ้าเปิดห้องค้างอยู่ หน้าจอของเขาจะพาออกจากห้องเอง (channel:members)
+  async removeMember(
+    user: CoreHubUser,
+    channelId: string,
+    targetCoreUserId: string,
+  ): Promise<void> {
+    const membership = await this.requireMembership(user, channelId);
+    const channel = await this.prisma.channel.findUniqueOrThrow({
+      where: { id: channelId },
+      select: { kind: true, name: true, createdByCoreUserId: true },
+    });
+
+    if (channel.kind === 'DM') {
+      throw new BadRequestException('นำคนออกจากแชทส่วนตัวไม่ได้');
+    }
+
+    if (targetCoreUserId === user.coreUserId) {
+      throw new BadRequestException(
+        'นำตัวเองออกไม่ได้ — ใช้ "ออกจากห้อง" (DELETE /channels/:id/members/me)',
+      );
+    }
+
+    if (!canAdministerChannel(membership.role, user)) {
+      throw new ForbiddenException(
+        'เฉพาะผู้ดูแลห้อง อาจารย์ หรือผู้ดูแลระบบเท่านั้นที่นำสมาชิกออกได้',
+      );
+    }
+
+    const target = await this.prisma.channelMember.findUnique({
+      where: {
+        channelId_coreUserId: { channelId, coreUserId: targetCoreUserId },
+      },
+      select: { role: true },
+    });
+
+    if (!target) {
+      throw new NotFoundException('คนนี้ไม่ได้อยู่ในห้องนี้');
+    }
+
+    if (
+      !canRemoveMember(
+        channel,
+        membership.role,
+        user,
+        { coreUserId: targetCoreUserId, role: target.role },
+      )
+    ) {
+      throw new ForbiddenException(
+        'นำผู้สร้างห้องหรือผู้ดูแลห้องออกได้เฉพาะผู้สร้างห้องหรือผู้ดูแลระบบ',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.channelMember.delete({
+        where: {
+          channelId_coreUserId: { channelId, coreUserId: targetCoreUserId },
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorCoreUserId: user.coreUserId,
+          actorCoreRole: user.coreRole,
+          action: 'channel.member_remove',
+          targetKind: 'CHANNEL',
+          targetId: channelId,
+          metadata: {
+            kind: channel.kind,
+            name: channel.name,
+            removed_core_user_id: targetCoreUserId,
+            removed_role: target.role,
+          },
+        },
+      });
+
+      // แชทกลุ่มต้องมีผู้ดูแลเหลืออย่างน้อยหนึ่งคนเสมอ — กฎเดียวกับ leave
+      if (channel.kind === 'GROUP_DM' && target.role === 'MODERATOR') {
+        const moderators = await tx.channelMember.count({
+          where: { channelId, role: 'MODERATOR' },
+        });
+
+        if (moderators === 0) {
+          const oldest = await tx.channelMember.findFirst({
+            where: { channelId },
+            orderBy: { joinedAt: 'asc' },
+            select: { coreUserId: true },
+          });
+
+          if (oldest) {
+            await tx.channelMember.update({
+              where: {
+                channelId_coreUserId: { channelId, coreUserId: oldest.coreUserId },
+              },
+              data: { role: 'MODERATOR' },
+            });
+          }
+        }
+      }
+    });
+
+    // บอกทุกคนในห้อง (รวมคนที่ถูกนำออก) ก่อน แล้วค่อยเตะออกจากห้องของ socket
+    this.bus.pushToRoom({
+      room: channelId,
+      event: 'channel:members',
+      payload: {
+        channelId,
+        added: [],
+        removed: [targetCoreUserId],
+        byCoreUserId: user.coreUserId,
+      },
+    });
+
+    this.bus.evictFromRoom({ room: channelId, coreUserId: targetCoreUserId });
   }
 
   /// อัปเดตว่าอ่านถึงข้อความไหนแล้ว — ทำให้ badge ยังไม่อ่านคำนวณด้วยการลบเลข

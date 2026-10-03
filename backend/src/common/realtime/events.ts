@@ -106,7 +106,19 @@ export interface ServerEvents {
     name: string | null;
     deletedByCoreUserId: string;
   }) => void;
-  'presence:sync': (payload: PresencePayload) => void;
+
+  /// รายชื่อสมาชิกของห้องเปลี่ยน — มีคนถูกเชิญเข้า ถูกนำออก หรือออกเอง
+  ///
+  /// แผงสมาชิกของทุกคนที่เปิดห้องอยู่โหลดรายชื่อใหม่ทันที · คนที่อยู่ใน
+  /// `removed` และไม่ใช่ `byCoreUserId` คือถูกนำออก — ส่งก่อนเตะเขาออกจากห้อง
+  /// ของ socket เพื่อให้หน้าจอของเขาพาออกจากห้องได้ (แบบเดียวกับ channel:deleted)
+  'channel:members': (payload: {
+    channelId: string;
+    added: string[];
+    removed: string[];
+    byCoreUserId: string;
+  }) => void;
+  'presence:sync':(payload: PresencePayload) => void;
   'typing:sync': (payload: { channelId: string; coreUserId: string }) => void;
   'error:notice': (payload: { code: string; message: string }) => void;
 
