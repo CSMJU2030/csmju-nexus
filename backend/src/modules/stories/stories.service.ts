@@ -13,6 +13,7 @@ import {
   STORAGE_PROVIDER,
   type StorageProvider,
 } from '../../common/storage/storage.provider.js';
+import { AssetsService } from '../assets/assets.service.js';
 import { BlocksService } from '../blocks/blocks.service.js';
 import { ChannelsService } from '../channels/channels.service.js';
 import {
@@ -69,6 +70,7 @@ export class StoriesService {
     private readonly blocks: BlocksService,
     private readonly channels: ChannelsService,
     private readonly messages: MessagesService,
+    private readonly assets: AssetsService,
   ) {}
 
   /// โพสต์สตอรี่จากไฟล์ที่อัปโหลดเสร็จแล้ว
@@ -385,9 +387,14 @@ export class StoriesService {
       throw new ForbiddenException('ลบได้เฉพาะสตอรี่ของตัวเอง');
     }
 
+    let released: string[] = [];
+
     await this.prisma.$transaction(async (tx) => {
       // แถวในไฮไลต์หายตามด้วย CASCADE
       await tx.story.delete({ where: { id: storyId } });
+
+      // รูป/วิดีโอของสตอรี่ — คืนโควตาเจ้าของและรอลบจากที่เก็บ
+      released = await this.assets.releaseInTx(tx, [story.assetId]);
 
       // ไฮไลต์ที่ว่างเปล่าเพราะสตอรี่ชิ้นสุดท้ายถูกลบ ลบทิ้งด้วย — Instagram ก็ทำ
       // แบบนี้ วงกลมไฮไลต์ที่กดแล้วไม่มีอะไรให้ดูบนโปรไฟล์ดูเหมือนระบบพัง
@@ -411,6 +418,8 @@ export class StoriesService {
         },
       });
     });
+
+    await this.assets.purgeAfterDelete(released);
   }
 
   /// คลังสตอรี่ของฉัน — ทุกชิ้นไม่ว่าจะหมดอายุหรือยัง ใหม่ไปเก่า

@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
+import { AssetsModule } from '../assets/assets.module.js';
 import { FollowsModule } from '../follows/follows.module.js';
 import { ReactionsModule } from '../reactions/reactions.module.js';
 import { PostsController } from './posts.controller.js';
 import { PostsService } from './posts.service.js';
 
 @Module({
-  imports: [FollowsModule, ReactionsModule],
+  imports: [AssetsModule, FollowsModule, ReactionsModule],
   controllers: [PostsController],
   providers: [PostsService],
 })
