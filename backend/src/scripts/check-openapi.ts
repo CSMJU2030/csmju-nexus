@@ -14,6 +14,11 @@ import { buildOpenApiDocument, OPENAPI_FILE } from '../openapi.js';
 /// สคริปต์นี้จึงรันใน CI: สร้างเอกสารจากโค้ดปัจจุบัน เทียบกับไฟล์ที่ commit
 /// ถ้าไม่ตรงให้ CI แดงพร้อมบอกว่า path ไหนเพิ่ม/หาย/เปลี่ยน
 async function main(): Promise<void> {
+  // เครื่องหรือ CI ที่ไม่มี DATABASE_URL — PrismaService จะ throw ตั้งแต่ตอนสร้าง
+  // (logger ปิดอยู่จึงเงียบ เห็นแค่ exit 1) ทั้งที่สคริปต์นี้อ่านแค่ metadata ของ
+  // controller ไม่ได้ต่อฐานข้อมูล — ใช้ค่าสำรองแบบเดียวกับ write-openapi
+  process.env.DATABASE_URL ??= 'postgresql://localhost:5432/openapi_placeholder';
+
   // ปิด log ของ Nest เพื่อให้ผลลัพธ์ของสคริปต์อ่านง่ายใน CI
   const app = await NestFactory.create(AppModule, { logger: false });
 
