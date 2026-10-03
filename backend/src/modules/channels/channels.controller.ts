@@ -194,8 +194,15 @@ export class ChannelsController {
   }
 
   @Post(':id/members')
-  @ApiOperation({ summary: 'เพิ่มสมาชิกเข้าห้อง (เฉพาะผู้ดูแลห้อง)' })
+  @ApiOperation({
+    summary: 'เพิ่มสมาชิกเข้าห้อง (ผู้ดูแลห้อง อาจารย์ เจ้าหน้าที่ หรือผู้ดูแลระบบ)',
+    description:
+      'คนที่อยู่ในห้องแล้วข้ามให้ (added นับเฉพาะคนใหม่) · คนใหม่ได้แจ้งเตือน CHANNEL_INVITE · กระจาย socket channel:members ให้แผงสมาชิกอัปเดตทันที',
+  })
   @ApiEnvelope(AddMembersResponseDto, { status: 201 })
+  @ApiEnvelopeError(400, 'เป็นแชทส่วนตัว หรือแชทกลุ่มเกิน 32 คน')
+  @ApiEnvelopeError(403, 'ไม่ใช่ผู้ดูแลห้องหรือบุคลากร')
+  @ApiEnvelopeError(404, 'ไม่พบห้อง หรือไม่ได้เป็นสมาชิก')
   addMembers(
     @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -206,12 +213,35 @@ export class ChannelsController {
 
   @Delete(':id/members/me')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'ออกจากห้อง' })
+  @ApiOperation({
+    summary: 'ออกจากห้อง',
+    description: 'กระจาย socket channel:members (removed = ผู้เรียก) ให้คนที่ยังอยู่ในห้อง',
+  })
+  @ApiEnvelopeError(404, 'ไม่พบห้อง หรือไม่ได้เป็นสมาชิก')
   async leave(
     @CurrentUser() user: CoreHubUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     await this.channels.leave(user, id);
+  }
+
+  /// ต้องประกาศ **หลัง** `:id/members/me` — ไม่งั้น "me" ถูกจับเป็น coreUserId
+  @Delete(':id/members/:coreUserId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'นำสมาชิกคนอื่นออกจากห้อง (ผู้ดูแลห้อง อาจารย์ เจ้าหน้าที่ หรือผู้ดูแลระบบ)',
+    description:
+      'ห้องกลุ่ม ห้องประจำวิชา ห้องเสียง และแชทกลุ่ม · นำผู้ดูแลห้องออกได้เฉพาะผู้สร้างห้องหรือผู้ดูแลระบบ · นำผู้สร้างห้องออกได้เฉพาะผู้ดูแลระบบ · บันทึก audit log · กระจาย socket channel:members แล้วเตะคนนั้นออกจากห้องของ socket',
+  })
+  @ApiEnvelopeError(400, 'เป็นแชทส่วนตัว หรือพยายามนำตัวเองออก (ใช้ DELETE /members/me)')
+  @ApiEnvelopeError(403, 'ไม่มีสิทธิ์นำคนนี้ออก')
+  @ApiEnvelopeError(404, 'ไม่พบห้อง ไม่ได้เป็นสมาชิก หรือคนนี้ไม่ได้อยู่ในห้อง')
+  async removeMember(
+    @CurrentUser() user: CoreHubUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('coreUserId') coreUserId: string,
+  ) {
+    await this.channels.removeMember(user, id, coreUserId);
   }
 
   @Post(':id/read-markers')
