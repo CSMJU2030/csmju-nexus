@@ -5,6 +5,7 @@ import { useModalFocus } from './use-modal-focus';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Pause, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useProfile } from '@/components/csmju/user-name';
 
 /// สตอรี่หนึ่งชิ้น — รูปหรือวิดีโอ
 export interface Story {
@@ -52,6 +53,8 @@ export function StoryViewer({
   className,
 }: StoryViewerProps) {
   const [open, setOpen] = React.useState(false);
+  // coreUserId เป็น UUID — ห้ามขึ้นจอ ใช้ชื่อที่แสดงแทนทุกที่
+  const name = useProfile(coreUserId).displayName;
 
   return (
     <>
@@ -63,7 +66,7 @@ export function StoryViewer({
           'group flex shrink-0 cursor-pointer flex-col items-center gap-2 disabled:cursor-default disabled:opacity-60',
           className,
         )}
-        aria-label={`ดูสตอรี่ของ ${coreUserId}`}
+        aria-label={`ดูสตอรี่ของ ${name}`}
       >
         <span
           className={cn(
@@ -84,14 +87,14 @@ export function StoryViewer({
               />
             ) : (
               <span className="grid size-full place-items-center rounded-full bg-secondary text-lg font-semibold text-secondary-foreground">
-                {coreUserId.trim().charAt(0) || '?'}
+                {name.trim().charAt(0).toUpperCase() || '?'}
               </span>
             )}
           </span>
         </span>
 
         <span className="max-w-[80px] truncate text-xs text-muted-foreground">
-          {label ?? coreUserId}
+          {label ?? name}
         </span>
       </button>
 
@@ -130,6 +133,7 @@ function StoryOverlay({
   onAllStoriesViewed?: () => void;
   onMediaError?: (story: Story) => void;
 }) {
+  const name = useProfile(coreUserId).displayName;
   const [index, setIndex] = React.useState(0);
   const [progress, setProgress] = React.useState(0);
   const [paused, setPaused] = React.useState(false);
@@ -315,7 +319,7 @@ function StoryOverlay({
       className="fixed inset-0 z-100 flex flex-col bg-black/95 outline-none"
       role="dialog"
       aria-modal="true"
-      aria-label={`สตอรี่ของ ${coreUserId}`}
+      aria-label={`สตอรี่ของ ${name}`}
     >
       {/* แถบความคืบหน้าหนึ่งขีดต่อหนึ่งชิ้น */}
       <div className="flex gap-1 px-3 pt-3">
@@ -346,14 +350,14 @@ function StoryOverlay({
             <img src={avatar} alt="" className="size-full object-cover" />
           ) : (
             <span className="text-sm font-semibold text-white">
-              {coreUserId.trim().charAt(0) || '?'}
+              {name.trim().charAt(0).toUpperCase() || '?'}
             </span>
           )}
         </span>
 
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-white">
-            {coreUserId}
+            {name}
           </span>
           {timestamp && (
             <span className="block text-[11px] text-white/60">
@@ -407,13 +411,13 @@ function StoryOverlay({
               callbacks.current.onMediaError?.(story);
             }}
           >
-            <track kind="captions" label={`สตอรี่ของ ${coreUserId}`} />
+            <track kind="captions" label={`สตอรี่ของ ${name}`} />
           </video>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={story.src}
-            alt={`สตอรี่ของ ${coreUserId}`}
+            alt={`สตอรี่ของ ${name}`}
             className="size-full object-contain"
             onError={() => {
               setFailed(true);

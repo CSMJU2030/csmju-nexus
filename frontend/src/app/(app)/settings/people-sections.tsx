@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Avatar, useProfile } from '@/components/csmju/user-name';
+import { Avatar, shownName, useProfile } from '@/components/csmju/user-name';
 import { api } from '@/lib/csmju/api';
 import type { FollowEdge, ProfileSummary } from '@/lib/csmju/types';
 import { SettingsHeading } from './settings-shell';
@@ -71,7 +71,6 @@ function PersonLine({ coreUserId, action }: { coreUserId: string; action: React.
         >
           {profile.displayName}
         </Link>
-        <span className="block truncate text-csmju-label text-muted-foreground">{coreUserId}</span>
       </span>
       {action}
     </li>
@@ -164,7 +163,7 @@ export function CloseFriendsSection() {
                       type="button"
                       role="checkbox"
                       aria-checked={on}
-                      aria-label={`เพื่อนสนิท: ${names.data?.find((row) => row.coreUserId === id)?.displayName ?? id}`}
+                      aria-label={`เพื่อนสนิท: ${shownName(id, names.data?.find((row) => row.coreUserId === id)?.displayName)}`}
                       disabled={busy === id}
                       onClick={() => void toggle(id)}
                       className={`grid size-6 shrink-0 place-items-center rounded-full border-2 transition-colors disabled:opacity-60 ${

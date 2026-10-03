@@ -295,7 +295,6 @@ function PersonRadio({
         <Avatar coreUserId={coreUserId} size={32} showOnline={false} />
         <span className="min-w-0 leading-tight">
           <span className="block truncate font-semibold">{profile.displayName}</span>
-          <span className="block truncate text-csmju-caption text-muted-foreground">{coreUserId}</span>
         </span>
       </span>
     </RadioRow>

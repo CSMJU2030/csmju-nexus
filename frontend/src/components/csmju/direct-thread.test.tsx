@@ -83,14 +83,18 @@ vi.mock('@/components/csmju/emoji-picker', async (original) => ({
 vi.mock('@/components/csmju/user-badge', () => ({
   useOnline: () => false,
 }));
-vi.mock('@/components/csmju/user-name', () => ({
+vi.mock('@/components/csmju/user-name', async (original) => ({
+  ...(await original<typeof import('@/components/csmju/user-name')>()),
   Avatar: ({ coreUserId }: { coreUserId: string }) => (
     <span data-testid={`avatar-${coreUserId}`} />
   ),
+  // คนที่ไม่อยู่ในรายการ = ยังไม่มีชื่อในแคช — หลังบ้านคืน displayName = coreUserId
+  // แล้ว useProfile ตัวจริงแปลงเป็นชื่อสำรอง ("ผู้ใช้") ไม่ให้ UUID ขึ้นจอ
   useProfile: (id: string) => ({
     coreUserId: id,
     displayName:
-      ({ 'user-003': 'อาจารย์สมชาย', 'user-004': 'มะลิ', 'user-005': 'ต้นกล้า' } as Record<string, string>)[id] ?? id,
+      ({ 'user-003': 'อาจารย์สมชาย', 'user-004': 'มะลิ', 'user-005': 'ต้นกล้า' } as Record<string, string>)[id] ??
+      'ผู้ใช้',
     avatarUrl: null,
     syncedAt: null,
     badge: null,
@@ -316,7 +320,7 @@ describe('DirectThread', () => {
 
     setup();
 
-    await screen.findByText('user-003');
+    await screen.findByText('อาจารย์สมชาย · CS Nexus');
     await userEvent.type(screen.getByLabelText('พิมพ์ข้อความ'), 'ถึงแล้วครับ{Enter}');
 
     expect(await screen.findByText('กำลังส่ง…')).toBeInTheDocument();
@@ -410,7 +414,9 @@ describe('DirectThread', () => {
     const panel = screen.getByRole('complementary', { name: 'รายละเอียดบทสนทนา' });
 
     expect(panel).toHaveTextContent('อาจารย์สมชาย');
-    expect(panel).toHaveTextContent('user-002 (คุณ)');
+    // ตัวเราเองไม่มีชื่อใน mock → ชื่อสำรอง ไม่ใช่ coreUserId
+    expect(panel).toHaveTextContent('ผู้ใช้ (คุณ)');
+    expect(panel).not.toHaveTextContent('user-002');
   });
 });
 
@@ -945,6 +951,42 @@ describe('รอบที่ 3 — เมนูข้อความ ตอบ�
 
     expect(api.del).toHaveBeenCalledWith('/blocks/user-003');
     expect(await screen.findByLabelText('พิมพ์ข้อความ')).toBeInTheDocument();
+  });
+
+  it('**สถานะใต้ชื่อไม่มีข้อมูลออนไลน์ = ชื่อผู้ใช้** แบบ Instagram — ไม่ใช่ coreUserId (UUID)', async () => {
+    const uuid = 'e2b39ea5-d4ff-467b-89a2-4e90f401947f';
+
+    api.list.mockResolvedValue(page([]));
+    socketMock.connect.mockResolvedValue({ connected: true, emit: vi.fn() });
+    socketMock.emitWithAck.mockResolvedValue({ ok: true });
+    // ปิดแสดงสถานะกิจกรรม = หลังบ้านไม่บอกเวลาออนไลน์ล่าสุด
+    api.get.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.startsWith('/presence') ? { users: [{ coreUserId: uuid, online: false, lastActiveAt: null }] } : [],
+      ),
+    );
+
+    setup({}, dm({ peerCoreUserId: uuid }));
+
+    // ชื่อสำรองของคนที่ยังไม่มีชื่อในแคช (mock คืน displayName = coreUserId แบบหลังบ้าน)
+    // หัวแชทและบล็อกแนะนำตัวต้นห้องบอกเหมือนกัน
+    expect(await screen.findAllByText('บัญชี CS Nexus')).toHaveLength(2);
+    expect(screen.queryByText(uuid)).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain(uuid);
+  });
+
+  it('สถานะใต้ชื่อไม่มีข้อมูลออนไลน์ → ชื่อที่แสดงจากแคชโปรไฟล์', async () => {
+    api.list.mockResolvedValue(page([]));
+    socketMock.connect.mockResolvedValue({ connected: true, emit: vi.fn() });
+    socketMock.emitWithAck.mockResolvedValue({ ok: true });
+    api.get.mockResolvedValue([]);
+
+    setup();
+
+    const header = (await screen.findAllByText('อาจารย์สมชาย'))[0].closest('header')!;
+
+    expect(within(header).getAllByText('อาจารย์สมชาย')).toHaveLength(2);
+    expect(within(header).queryByText('user-003')).not.toBeInTheDocument();
   });
 
   it('สถานะใต้ชื่อ: "ใช้งานเมื่อ … ที่แล้ว" จาก GET /presence', async () => {
