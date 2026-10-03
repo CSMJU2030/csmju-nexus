@@ -1,0 +1,104 @@
+# Render Blueprint — หลังบ้านของ cs-nexus บนชั้นใช้ฟรี
+#
+# วิธีใช้: Render → New → Blueprint → เลือก repo นี้ → Apply
+# Render จะอ่านไฟล์นี้แล้วสร้างบริการให้เอง ไม่ต้องตั้งค่าทีละช่องในหน้าเว็บ
+#
+# ทำไมเลือก Render: เป็นชั้นใช้ฟรีที่ไม่ต้องผูกบัตร และรองรับ WebSocket ซึ่ง
+# จำเป็นสำหรับแชท การแจ้งเตือน และสายเรียกเข้า (โฮสต์แบบ serverless หลายเจ้า
+# ถือ WebSocket ค้างไม่ได้ จึงใช้กับระบบนี้ไม่ได้เลย)
+#
+# **ข้อแลกของชั้นใช้ฟรีที่ต้องรู้ก่อน:** เครื่องจะหลับเมื่อไม่มีใครเรียกราว
+# 15 นาที คำขอแรกหลังหลับจะช้าราว 30-60 วินาที (cold start) ผู้ใช้จะเห็นเป็น
+# "โหลดนาน" ครั้งเดียวแล้วหลังจากนั้นเร็วปกติ — ถ้าจะเดโมให้ PM ให้เปิดหน้าเว็บ
+# ทิ้งไว้สักคำขอก่อนเริ่มพูด เครื่องจะตื่นรออยู่แล้ว
+
+services:
+  - type: web
+    name: cs-nexus-api
+    runtime: node
+    plan: free
+    region: singapore # ใกล้ไทยที่สุดในชั้นใช้ฟรี
+    # รากของ workspace ไม่ใช่ backend/ — pnpm ต้องเห็น pnpm-workspace.yaml
+    # กับ pnpm-lock.yaml ที่ราก ไม่งั้นติดตั้ง dependency ไม่ได้เลย
+    rootDir: .
+
+
+    # migrate deploy ไม่ใช่ migrate dev — dev จะสร้าง migration ใหม่เองถ้า
+    # schema ไม่ตรง ซึ่งบนเซิร์ฟเวอร์แปลว่าแก้ฐานข้อมูลจริงโดยไม่มีใครตรวจ
+    buildCommand: >-
+      corepack enable pnpm &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter backend exec prisma generate &&
+      pnpm --filter backend build &&
+      pnpm --filter backend exec prisma migrate deploy
+    startCommand: pnpm --filter backend start:prod
+
+    # Render เรียกเส้นทางนี้เพื่อดูว่าบริการพร้อมหรือยัง
+    # /api/health เป็นเส้นทางบังคับตาม contracts/vocabulary.json (requiredRoutes.health)
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Render กำหนดพอร์ตให้เองผ่านตัวแปรนี้ — main.ts อ่านค่านี้อยู่แล้ว
+      - key: PORT
+        value: 10000
+
+      # ---- ต้องกรอกเองในหน้า Render (sync: false = ไม่เก็บลงไฟล์นี้) ----
+      #
+      # ห้ามใส่ค่าจริงลงไฟล์นี้เด็ดขาด มันขึ้น git ไปด้วย
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+
+      # ── Core Hub (สัญญา v1.0) ────────────────────────────────────
+      #
+      # ระบบย่อยตรวจ JWT เองผ่าน JWKS จึงต้องรู้ที่อยู่ของ Core Hub
+      # ห้าตัวนี้คือ requiredEnvVars ตาม contracts/vocabulary.json
+      - key: CORE_HUB_URL
+        sync: false
+      - key: CORE_HUB_JWKS_URL
+        sync: false
+      - key: CORE_HUB_ISSUER
+        value: core-hub
+      - key: CORE_HUB_AUDIENCE
+        value: csmju2030
+      - key: SUBSYSTEM_ID
+        value: csmju-nexus
+
+      # หน้าบ้านที่ /auth/callback จะพาผู้ใช้ไปต่อหลังตั้ง session สำเร็จ
+      - key: FRONTEND_URL
+        sync: false
+
+      # ── ชั้นเดิมที่ยังไม่ได้ถอด ───────────────────────────────────
+      #
+      # 68 endpoint ที่เหลือยังใช้ header จาก Gateway ซึ่งสัญญา v1.0
+      # ยกเลิกไปแล้ว
+      # จนกว่าจะย้ายเสร็จ ด่านนี้ยังเป็นสิ่งเดียวที่กันคนแปลกหน้าออกไป
+      # **ห้ามถอดก่อนที่ทุก endpoint จะย้ายไปใช้ CoreHubJwtGuard**
+      - key: GATEWAY_SHARED_SECRET
+        sync: false
+      - key: ALLOW_UNPROTECTED_GATEWAY
+        sync: false
+
+      # ---- ไม่บังคับ ----
+      - key: TURN_URL
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false
+      - key: CSMJU_CORE_API_URL
+        sync: false
+
+      # โหมดปลอม header ต้องปิดเสมอบนของจริง
+      # main.ts ปฏิเสธการบูตถ้าเปิดไว้ตอน NODE_ENV=production อยู่แล้ว
+      # ตั้งซ้ำตรงนี้เพื่อให้เห็นชัดว่าเป็นเจตนา ไม่ใช่ลืม
+      - key: DEV_FAKE_GATEWAY
+        value: 'false'

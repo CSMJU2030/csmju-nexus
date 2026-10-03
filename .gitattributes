@@ -1,0 +1,3 @@
+# ตัวอ่าน manifest ของ standards/conformance พังเมื่อไฟล์เป็น CRLF (อ่านไม่ได้ตั้งแต่บรรทัด 1)
+# core.autocrlf=true บน Windows จะแปลงให้เองตอน checkout — ล็อกไว้เป็น LF เสมอ
+subsystem.yaml text eol=lf

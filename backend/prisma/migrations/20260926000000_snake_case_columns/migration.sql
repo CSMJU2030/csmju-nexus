@@ -1,0 +1,109 @@
+-- เปลี่ยนชื่อคอลัมน์ให้เป็น snake_case ตาม data-dictionary.md ข้อ 9.1 (กฎ DD-03)
+--
+-- **เขียนด้วยมือเป็น RENAME COLUMN โดยเจตนา**
+--
+-- `prisma migrate dev` จะสร้าง migration นี้เป็น DROP COLUMN + ADD COLUMN
+-- ซึ่งแปลว่า **ข้อมูลในคอลัมน์เดิมหายทั้งหมด** — ข้อ 9.3 ของ data-dictionary
+-- ห้ามไว้ตรง ๆ และนี่คือเหตุผลที่ห้าม
+--
+-- PostgreSQL ย้าย index, constraint และ default ตามคอลัมน์ไปเองเมื่อ RENAME
+-- จึงไม่ต้องสร้างใหม่ ส่วนชื่อของ index ที่ยังอ้างชื่อเดิมอยู่ ถูกแก้ในช่วงท้าย
+
+ALTER TABLE "subsystem_members" RENAME COLUMN "layer2Role" TO "layer2_role";
+ALTER TABLE "subsystem_members" RENAME COLUMN "layer2RoleExplicit" TO "layer2_role_explicit";
+ALTER TABLE "subsystem_members" RENAME COLUMN "storageUsedBytes" TO "storage_used_bytes";
+ALTER TABLE "subsystem_members" RENAME COLUMN "storageQuotaBytes" TO "storage_quota_bytes";
+ALTER TABLE "subsystem_members" RENAME COLUMN "coverAssetId" TO "cover_asset_id";
+ALTER TABLE "subsystem_members" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "subsystem_members" RENAME COLUMN "updatedAt" TO "updated_at";
+ALTER TABLE "profile_cache" RENAME COLUMN "displayName" TO "display_name";
+ALTER TABLE "profile_cache" RENAME COLUMN "avatarUrl" TO "avatar_url";
+ALTER TABLE "profile_cache" RENAME COLUMN "syncedAt" TO "synced_at";
+ALTER TABLE "reels" RENAME COLUMN "assetId" TO "asset_id";
+ALTER TABLE "reels" RENAME COLUMN "durationMs" TO "duration_ms";
+ALTER TABLE "reels" RENAME COLUMN "authorUsername" TO "author_username";
+ALTER TABLE "reels" RENAME COLUMN "likeCount" TO "like_count";
+ALTER TABLE "reels" RENAME COLUMN "viewCount" TO "view_count";
+ALTER TABLE "reels" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "reel_likes" RENAME COLUMN "reelId" TO "reel_id";
+ALTER TABLE "reel_likes" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "reel_comments" RENAME COLUMN "reelId" TO "reel_id";
+ALTER TABLE "reel_comments" RENAME COLUMN "authorUsername" TO "author_username";
+ALTER TABLE "reel_comments" RENAME COLUMN "deletedAt" TO "deleted_at";
+ALTER TABLE "reel_comments" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "posts" RENAME COLUMN "courseTag" TO "course_tag";
+ALTER TABLE "posts" RENAME COLUMN "authorUsername" TO "author_username";
+ALTER TABLE "posts" RENAME COLUMN "commentCount" TO "comment_count";
+ALTER TABLE "posts" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "post_comments" RENAME COLUMN "postId" TO "post_id";
+ALTER TABLE "post_comments" RENAME COLUMN "authorUsername" TO "author_username";
+ALTER TABLE "post_comments" RENAME COLUMN "deletedAt" TO "deleted_at";
+ALTER TABLE "post_comments" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "channels" RENAME COLUMN "courseTag" TO "course_tag";
+ALTER TABLE "channels" RENAME COLUMN "maxSeats" TO "max_seats";
+ALTER TABLE "channels" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "channel_members" RENAME COLUMN "channelId" TO "channel_id";
+ALTER TABLE "channel_members" RENAME COLUMN "lastReadSeq" TO "last_read_seq";
+ALTER TABLE "channel_members" RENAME COLUMN "joinedAt" TO "joined_at";
+ALTER TABLE "messages" RENAME COLUMN "clientNonce" TO "client_nonce";
+ALTER TABLE "messages" RENAME COLUMN "channelId" TO "channel_id";
+ALTER TABLE "messages" RENAME COLUMN "authorUsername" TO "author_username";
+ALTER TABLE "messages" RENAME COLUMN "parentId" TO "parent_id";
+ALTER TABLE "messages" RENAME COLUMN "replyCount" TO "reply_count";
+ALTER TABLE "messages" RENAME COLUMN "pinnedAt" TO "pinned_at";
+ALTER TABLE "messages" RENAME COLUMN "pinnedByUsername" TO "pinned_by_username";
+ALTER TABLE "messages" RENAME COLUMN "editedAt" TO "edited_at";
+ALTER TABLE "messages" RENAME COLUMN "deletedAt" TO "deleted_at";
+ALTER TABLE "messages" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "message_embeds" RENAME COLUMN "messageId" TO "message_id";
+ALTER TABLE "message_embeds" RENAME COLUMN "refId" TO "ref_id";
+ALTER TABLE "assets" RENAME COLUMN "ownerUsername" TO "owner_username";
+ALTER TABLE "assets" RENAME COLUMN "objectPath" TO "object_path";
+ALTER TABLE "assets" RENAME COLUMN "fileName" TO "file_name";
+ALTER TABLE "assets" RENAME COLUMN "mimeType" TO "mime_type";
+ALTER TABLE "assets" RENAME COLUMN "sizeBytes" TO "size_bytes";
+ALTER TABLE "assets" RENAME COLUMN "messageId" TO "message_id";
+ALTER TABLE "assets" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "voice_sessions" RENAME COLUMN "channelId" TO "channel_id";
+ALTER TABLE "voice_sessions" RENAME COLUMN "startedAt" TO "started_at";
+ALTER TABLE "voice_sessions" RENAME COLUMN "endedAt" TO "ended_at";
+ALTER TABLE "voice_participants" RENAME COLUMN "sessionId" TO "session_id";
+ALTER TABLE "voice_participants" RENAME COLUMN "joinedAt" TO "joined_at";
+ALTER TABLE "voice_participants" RENAME COLUMN "leftAt" TO "left_at";
+ALTER TABLE "reports" RENAME COLUMN "reporterUsername" TO "reporter_username";
+ALTER TABLE "reports" RENAME COLUMN "targetKind" TO "target_kind";
+ALTER TABLE "reports" RENAME COLUMN "targetId" TO "target_id";
+ALTER TABLE "reports" RENAME COLUMN "resolvedByUsername" TO "resolved_by_username";
+ALTER TABLE "reports" RENAME COLUMN "resolvedAt" TO "resolved_at";
+ALTER TABLE "reports" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "notifications" RENAME COLUMN "refId" TO "ref_id";
+ALTER TABLE "notifications" RENAME COLUMN "actorUsername" TO "actor_username";
+ALTER TABLE "notifications" RENAME COLUMN "readAt" TO "read_at";
+ALTER TABLE "notifications" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "audit_logs" RENAME COLUMN "actorUsername" TO "actor_username";
+ALTER TABLE "audit_logs" RENAME COLUMN "actorLayer1Role" TO "actor_layer1_role";
+ALTER TABLE "audit_logs" RENAME COLUMN "targetKind" TO "target_kind";
+ALTER TABLE "audit_logs" RENAME COLUMN "targetId" TO "target_id";
+ALTER TABLE "audit_logs" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "follows" RENAME COLUMN "followerUsername" TO "follower_username";
+ALTER TABLE "follows" RENAME COLUMN "followingUsername" TO "following_username";
+ALTER TABLE "follows" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "reactions" RENAME COLUMN "targetKind" TO "target_kind";
+ALTER TABLE "reactions" RENAME COLUMN "targetId" TO "target_id";
+ALTER TABLE "reactions" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "bookmarks" RENAME COLUMN "targetKind" TO "target_kind";
+ALTER TABLE "bookmarks" RENAME COLUMN "targetId" TO "target_id";
+ALTER TABLE "bookmarks" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "meetings" RENAME COLUMN "channelId" TO "channel_id";
+ALTER TABLE "meetings" RENAME COLUMN "startsAt" TO "starts_at";
+ALTER TABLE "meetings" RENAME COLUMN "endsAt" TO "ends_at";
+ALTER TABLE "meetings" RENAME COLUMN "createdByUsername" TO "created_by_username";
+ALTER TABLE "meetings" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "reel_views" RENAME COLUMN "reelId" TO "reel_id";
+ALTER TABLE "reel_views" RENAME COLUMN "viewedAt" TO "viewed_at";
+ALTER TABLE "stories" RENAME COLUMN "authorUsername" TO "author_username";
+ALTER TABLE "stories" RENAME COLUMN "assetId" TO "asset_id";
+ALTER TABLE "stories" RENAME COLUMN "expiresAt" TO "expires_at";
+ALTER TABLE "stories" RENAME COLUMN "createdAt" TO "created_at";
+ALTER TABLE "story_views" RENAME COLUMN "storyId" TO "story_id";
+ALTER TABLE "story_views" RENAME COLUMN "viewedAt" TO "viewed_at";

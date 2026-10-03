@@ -1,13 +1,76 @@
-.env
-.env.local
-.env.*.local
-node_modules/
-.pnpm-store/
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+#
+# เดิมเขียน `/.next/` ซึ่งผูกกับรากเท่านั้น พอย้ายหน้าบ้านเข้า frontend/
+# ตาม repo-structure.md ผลลัพธ์ build ก็หลุดเข้า git ทันที (หลายพันไฟล์)
+# เขียนแบบไม่ผูกรากเพื่อให้ครอบทุกชั้น
 .next/
+/out/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+/src/generated/prisma
+
+
+# node_modules ของทุกชั้น ไม่ใช่แค่ราก
+#
+# ของเดิมเขียน `/node_modules` ซึ่งผูกกับรากเท่านั้น — backend/node_modules
+# (497 MB) จึงไม่ถูกกันเลย และจะถูก commit ขึ้นไปทั้งก้อน
+node_modules/
+
+# ผลลัพธ์การ build ของหลังบ้าน
+backend/dist/
+
+# ตัวอย่างค่าคอนฟิกต้องขึ้น repo (กฎ .env* ข้างบนกันมันไปด้วย)
+!.env.example
+!backend/.env.example
+
+# ไฟล์ชั่วคราวของสคริปต์ช่วยงาน ไม่ใช่ซอร์สโค้ด
+.tmp/
+
+# local ide configuration
+.vscode/
+
+# ── รายการจากแม่แบบของ org (CSMJU2030/csmju-nexus) ที่ของเดิมยังไม่มี ──
+.pnpm-store/
 dist/
 build/
 coverage/
 generated/
-*.pem
 *.key
-!.env.example

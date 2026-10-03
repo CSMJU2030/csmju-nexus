@@ -1,3 +1,22 @@
 packages:
-  - 'frontend'
-  - 'backend'
+  - "frontend"
+  - "backend"
+
+# pnpm 10+ ไม่ให้ dependency รันสคริปต์ตอนติดตั้ง (postinstall) ยกเว้นที่ระบุ
+# ตรงนี้ — กันกรณี package ในสายการพึ่งพาถูกแฮ็กแล้วฝังโค้ดไว้ใน postinstall
+# ซึ่งเป็นช่องทางโจมตีห่วงโซ่อุปทานที่เกิดขึ้นจริงมาแล้วหลายครั้ง
+#
+# ทุกตัวต้องมีเหตุผลว่า "ทำไมมันจำเป็นต้องรันสคริปต์" — ไม่ใช่ใส่ให้ error หาย
+allowBuilds:
+  # Prisma generate client ตอนติดตั้ง ถ้าไม่ให้รัน typecheck พังทั้งหลังบ้าน
+  prisma: true
+  "@prisma/client": true
+  "@prisma/engines": true
+
+  # ตัวแก้เส้นทางของ eslint เป็น native binary ต้องคอมไพล์ตอนติดตั้ง
+  unrs-resolver: true
+
+  # @scarf/scarf ส่งข้อมูลการติดตั้งกลับไปที่ผู้ผลิต — ไม่จำเป็นต่อการทำงาน
+  # และเป็นข้อมูลของมหาวิทยาลัยที่ไม่ควรไหลออกโดยไม่มีใครตัดสินใจ
+  # **ปฏิเสธโดยเจตนา ไม่ใช่ลืมใส่**
+  "@scarf/scarf": false

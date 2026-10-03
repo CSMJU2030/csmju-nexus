@@ -1,0 +1,38 @@
+# ฐานข้อมูลของระบบย่อยนี้เท่านั้น (Database-per-Subsystem · Blueprint หน้า 10)
+#
+#   npm run db:up     — เปิดและรอจนพร้อมรับ connection
+#   npm run db:down   — ปิด (ข้อมูลยังอยู่ใน volume)
+#
+# มีไฟล์นี้เพราะคำสั่ง docker run ยาว ๆ ใน README ทำให้ทุกคนพิมพ์พอร์ตหรือ
+# ชื่อฐานข้อมูลไม่เหมือนกัน แล้ว DATABASE_URL ในเครื่องแต่ละคนก็ไม่ตรงกัน
+# อาการที่ตามมาคือ "Can't reach database server at 127.0.0.1:55432"
+# ซึ่งดูเหมือนโค้ดพัง แต่จริง ๆ คือคอนเทนเนอร์ไม่ได้รันอยู่
+#
+# ไม่ตั้ง container_name โดยตั้งใจ — ปล่อยให้ compose ตั้งชื่อเอง เพื่อไม่ให้
+# ชนกับคอนเทนเนอร์ชื่อเดิมที่ใครสร้างไว้ด้วย `docker run` (ชนแล้ว compose
+# จะไม่ยอมขึ้นเลย และคนจะไม่รู้ว่าต้องไปลบตัวไหน)
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: csnexus_social_reels
+    ports:
+      # ค่าเริ่มต้น 55432 ไม่ใช่ 5432 เพราะเครื่องพัฒนามักมี Postgres ตัวอื่น
+      # อยู่แล้ว ถ้าชนพอร์ตจะต่อไปที่ฐานข้อมูลผิดตัวโดยไม่มีอะไรเตือน
+      # ตั้ง DB_PORT ทับได้ถ้า 55432 ถูกใช้อยู่ (ต้องแก้ DATABASE_URL ตามด้วย)
+      - '${DB_PORT:-55432}:5432'
+    volumes:
+      - csnexus-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `docker compose up --wait` รอ healthcheck นี้ ทำให้สั่ง migrate
+      # ต่อได้ทันทีโดยไม่ต้องเดาว่าฐานข้อมูลพร้อมหรือยัง
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d csnexus_social_reels']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  csnexus-pgdata:

@@ -1,0 +1,977 @@
+// CS Nexus (csmju-nexus) — ฐานข้อมูลของระบบย่อย
+// ภายใต้ CSMJU2030 · standards_version 1.0.0
+//
+// กฎที่ schema นี้ยึด (csmju2030-standards v1.0):
+//   1. Database-per-Subsystem — ฐานข้อมูลนี้เป็นของระบบย่อยนี้เท่านั้น
+//      ไม่มีตารางไหนที่ระบบย่อยอื่นต้องรู้จัก (tech-stack.md ข้อ 1.3 · กฎ ARC-01)
+//   2. ห้ามสร้างตาราง users ของตัวเอง เก็บได้แค่ external reference
+//      ชื่อ `coreUserId` (ค่า `sub` จาก token) เท่านั้น — data-dictionary.md ข้อ 3
+//      ชื่ออื่นที่สื่อความหมายเดียวกันถูกกฎ DD-01 ห้ามไว้
+//   3. core role (student/alumni/staff/admin) ไม่เก็บลงฐานข้อมูล —
+//      อ่านจาก claim ที่ผ่านการตรวจลายเซ็นทุก request เพราะ Core Hub
+//      เป็นแหล่งความจริง (data-dictionary.md ข้อ 10)
+//   4. `layer2Role` เป็น Local Data ของระบบย่อย นิยามเองได้ และเก็บที่นี่
+//   5. ฐานข้อมูลเป็น snake_case ผ่าน @map/@@map ส่วนฟิลด์ใน Prisma เป็น
+//      camelCase — แยกชั้น DB กับ application โดยเจตนา (ข้อ 9.1 · กฎ DD-03)
+//   6. วันเวลาเป็น timestamptz ทั้งหมด แปลงเป็น ISO 8601 ลงท้าย Z ที่ชั้น API
+//
+// คีย์ตัวตนคือ `coreUserId` = ค่า `sub` จาก token ของ Core Hub (เช่น "user-002")
+//
+// ย้ายมาจาก `username` เมื่อ 27 ก.ย. 2569 หลังต่อกับ Core Hub ตัวจริงแล้วพบว่า
+// **token ไม่มี claim `username` เลย** — data-dictionary.md ข้อ 1.2 ระบุว่า
+// ค่านั้นอยู่ในฐานข้อมูลของ Core Hub และดึงได้เฉพาะผ่าน GET /api/v1/users/:id
+// ซึ่งต้องมี permission ที่ระบบย่อยไม่มี
+//
+// ถ้าคงชื่อ `username` ไว้แล้วยัดค่า `sub` ลงไป จะเป็นคอลัมน์ที่ชื่อไม่ตรงกับ
+// สิ่งที่เก็บ ซึ่งคนอ่านโค้ดทีหลังจะเข้าใจผิดแน่นอน
+//
+// ชื่อที่แสดงผลมาจากตาราง `profile_cache` ซึ่งเป็นแคช ไม่ใช่แหล่งความจริง
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7: connection URL อยู่ใน prisma.config.ts และส่ง adapter ให้ PrismaClient
+}
+
+/// Layer 2 — สิทธิ์ระดับระบบย่อย นิยามเองได้ตาม Blueprint หน้า 11
+/// default mapping จาก Layer 1: student→GUEST, staff→EDITOR, admin→ADMIN
+enum Layer2Role {
+  GUEST
+  EDITOR
+  ADMIN
+}
+
+enum ChannelKind {
+  DM
+  GROUP
+  COURSE
+  VOICE
+  /// แชทกลุ่มแบบ Instagram Direct — สร้างผ่าน /direct-channels เท่านั้น
+  /// ต่างจาก GROUP ตรงที่ไม่บังคับวัตถุประสงค์ ไม่ตั้งชื่อก็ได้ และมีสมาชิกได้ไม่เกิน 32 คน
+  GROUP_DM
+}
+
+/// แฟ้มกล่องข้อความแบบ Instagram (หลัก · ทั่วไป · ซ่อน) — เป็นการตั้งค่า "ของสมาชิกคนนั้น"
+/// ไม่ใช่ของห้อง เพราะคนสองคนในห้องเดียวกันจัดแฟ้มไม่เหมือนกัน
+///
+/// ไม่มีค่า REQUEST โดยเจตนา — "คำขอข้อความ" คำนวณสดจากสถานะการติดตามและการตอบ
+/// ถ้าเก็บลงคอลัมน์ พอผู้ใช้กดติดตามอีกฝ่ายแล้ว ห้องจะค้างเป็นคำขอตลอดไป
+enum InboxFolder {
+  PRIMARY
+  GENERAL
+  HIDDEN
+}
+
+enum ChannelRole {
+  MEMBER
+  MODERATOR
+}
+
+enum AssetStatus {
+  PENDING
+  READY
+  BLOCKED
+}
+
+enum AssetKind {
+  IMAGE
+  VIDEO
+  CODE
+  DOCUMENT
+  ARCHIVE
+  /// ข้อความเสียง (webm/ogg/mp3/m4a/wav) — เล่นในหน้าได้ ไม่บังคับดาวน์โหลด
+  AUDIO
+}
+
+enum EmbedKind {
+  REEL
+  POST
+  /// แชร์สตอรี่เข้าแชท หรือ "ตอบกลับสตอรี่" — refId = Story.id
+  STORY
+}
+
+/// ข้อความที่เกิดจากการตอบสตอรี่ — พิมพ์ตอบ หรือกดอิโมจิ (แบบ Instagram)
+enum StoryReplyKind {
+  REPLY
+  REACTION
+}
+
+/// ใครเห็นโน้ตของฉัน — สองตัวเลือกเดียวกับ Instagram
+enum NoteAudience {
+  MUTUAL_FOLLOWERS
+  CLOSE_FRIENDS
+}
+
+/// ใครคอมเมนต์ใต้คลิป/โพสต์ของฉันได้
+enum CommentsFrom {
+  EVERYONE
+  FOLLOWING
+  FOLLOWERS
+  MUTUAL
+  OFF
+}
+
+/// ระดับการแจ้งเตือนแบบ "ปิด / จากคนที่ฉันติดตาม / จากทุกคน"
+enum NotifyAudience {
+  OFF
+  FOLLOWING
+  EVERYONE
+}
+
+/// การแจ้งเตือนข้อความ — ปิด · เฉพาะแฟ้มหลัก · หลักและทั่วไป
+enum NotifyMessages {
+  OFF
+  PRIMARY
+  PRIMARY_GENERAL
+}
+
+enum CallKind {
+  AUDIO
+  VIDEO
+}
+
+/// เป้าหมายของอิโมจิรีแอ็กชัน — ครอบทั้งแชท กระดานข่าว และคลิป
+enum ReactionTarget {
+  MESSAGE
+  POST
+  REEL
+}
+
+/// สิ่งที่บันทึกเก็บไว้ดูทีหลังได้ (ปุ่ม Save แบบ IG / Saved แบบ Facebook)
+enum BookmarkTarget {
+  POST
+  REEL
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+enum ReportTarget {
+  REEL
+  POST
+  MESSAGE
+  COMMENT
+  USER
+  /// "รายงานปัญหา" กับตัวแอปเอง (เมนู ≡ ของ Instagram) — ไม่มีเนื้อหาชิ้นไหนให้ชี้
+  SYSTEM
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  REJECTED
+}
+
+enum NotificationKind {
+  REEL_LIKE
+  REEL_COMMENT
+  POST_COMMENT
+  MENTION
+  VOICE_INVITE
+  FOLLOW
+  REACTION
+  THREAD_REPLY
+  MEETING_INVITE
+  CHANNEL_INVITE
+  /// มีคนรีโพสต์คลิปของฉัน
+  REEL_REPOST
+  /// มีคนตอบหรือกดอิโมจิที่สตอรี่ของฉัน
+  STORY_REPLY
+  /// มีคนกดใจความคิดเห็นของฉันใต้คลิป
+  COMMENT_LIKE
+  /// สายที่ไม่ได้รับ (DM/แชทกลุ่ม) — คุมด้วยการตั้งค่า messages
+  MISSED_CALL
+}
+
+/// ข้อมูล "เฉพาะระบบย่อยนี้" ของผู้ใช้หนึ่งคน
+///
+/// ไม่มี name / email / faculty อยู่ที่นี่ตั้งใจ — สามอย่างนั้นเป็นของ Core
+/// ถ้าเก็บไว้จะกลายเป็นข้อมูลซ้ำซ้อนที่ล้าสมัยทันทีที่ Core แก้ (หน้า 10)
+/// ชื่อที่แสดงบนหน้าจอให้ frontend ขอจาก Core API หรือใช้ ProfileCache
+model SubsystemMember {
+  coreUserId   String     @id @map("core_user_id") // ← ค่า `sub` จาก token ของ Core Hub
+  layer2Role Layer2Role @default(GUEST) @map("layer2_role")
+
+  /// true = ผู้ดูแลตั้งค่านี้ด้วยมือ · false = ค่านี้แปลงมาจาก layer1_role
+  ///
+  /// จำเป็นเพราะเราไม่เก็บ layer1_role (หน้า 10) แต่ต้องรู้ว่าค่าใน
+  /// layer2Role เป็นการตัดสินใจของใคร
+  ///
+  /// อาการที่ฟิลด์นี้แก้: ผู้ดูแลตั้งโควตาล่วงหน้าให้อาจารย์ก่อนเปิดเทอม
+  /// แถวถูกสร้างด้วยค่าเริ่มต้น GUEST แล้วอาจารย์ค้างเป็น GUEST ตลอดกาล
+  /// เพราะไม่มีอะไรกลับไปแก้ให้ตรงกับ layer1_role ที่ header บอก
+  ///
+  /// วิธีทำงาน: ทุกครั้งที่ผู้ใช้ยิง request เรารู้ layer1_role จริงจาก header
+  /// ถ้า explicit = false และค่าไม่ตรงกับ default mapping ให้แก้ให้ตรง
+  /// (เขียนเฉพาะเมื่อไม่ตรง ไม่ใช่ทุก request)
+  layer2RoleExplicit Boolean @default(false) @map("layer2_role_explicit")
+  storageUsedBytes   BigInt  @default(0) @map("storage_used_bytes")
+  storageQuotaBytes  BigInt  @default(209715200) @map("storage_quota_bytes") // 200 MB
+
+  /// คำแนะนำตัวที่เขียน "เพื่อชุมชนนี้" — เป็น Local Data ไม่ใช่ของ Core
+  ///
+  /// เส้นแบ่งที่ยึด: Core เป็นเจ้าของ **ตัวตน** (ชื่อจริง คณะ อีเมล) ส่วน
+  /// ข้อความที่ผู้ใช้เขียนแนะนำตัวในระบบย่อยนี้เป็น **เนื้อหา** ที่เขาสร้าง
+  /// เหมือนโพสต์หรือคอมเมนต์ จึงเก็บที่นี่ได้
+  ///
+  /// ห้ามใส่ชื่อจริงหรือรูปโปรไฟล์ลงมาที่นี่เด็ดขาด — สองอย่างนั้นเป็นของ Core
+  /// (หน้า 10) ถ้าเก็บซ้ำจะล้าสมัยทันทีที่ Core แก้
+  /// TODO(PL): ยืนยันกับ PM ว่า bio กับรูปปกนับเป็น Local Data ตามที่ตีความนี้
+  bio String? @db.VarChar(300)
+
+  /// รูปปกของหน้าโปรไฟล์ในระบบย่อยนี้ (ไม่ใช่รูปโปรไฟล์ ซึ่งเป็นของ Core)
+  coverAssetId String?  @unique @map("cover_asset_id")
+  cover        Asset?   @relation(fields: [coverAssetId], references: [id], onDelete: SetNull)
+
+  /// เว็บไซต์บนโปรไฟล์ (http/https เท่านั้น) — เนื้อหาที่ผู้ใช้เขียนเอง เหมือน bio
+  website String? @db.VarChar(200)
+
+  /// ออนไลน์ล่าสุดเมื่อไหร่ — เขียนตอน socket หลุดและ heartbeat (จำกัดความถี่)
+  lastActiveAt DateTime? @map("last_active_at") @db.Timestamptz(3)
+
+  /// ความเป็นส่วนตัว — ค่าเริ่มต้นเท่ากับ Instagram (เปิดทุกอย่าง)
+  commentsFrom       CommentsFrom @default(EVERYONE) @map("comments_from")
+  showActivityStatus Boolean      @default(true) @map("show_activity_status")
+  showInSuggestions  Boolean      @default(true) @map("show_in_suggestions")
+
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([layer2Role])
+  @@map("subsystem_members")
+}
+
+/// แคชชื่อที่แสดงผลจาก Core — ไม่ใช่แหล่งความจริง
+///
+/// มีไว้เพื่อไม่ต้องยิง Core API ทุกครั้งที่เรนเดอร์ฟีด 20 รายการ
+/// `syncedAt` บอกว่าข้อมูลเก่าแค่ไหน ถ้าเกิน TTL ให้ดึงใหม่จาก Core
+/// TODO(PL): ยืนยันกับ PM ว่าการแคช display_name แบบนี้ผ่านมาตรฐานหน้า 10
+model ProfileCache {
+  coreUserId    String   @id @map("core_user_id")
+  displayName String   @map("display_name")
+  avatarUrl   String?  @map("avatar_url")
+  /// `null` = **ยังไม่เคยซิงก์ชื่อจริงจาก Core Hub**
+  ///
+  /// ชื่อที่เก็บไว้ตอนนี้อาจมาจากส่วนหน้าของอีเมลใน token ซึ่งอ่านออกกว่า
+  /// `user-002` แต่ไม่ใช่ชื่อจริงของคน หน้าบ้านดูค่านี้เพื่อบอกผู้ใช้ตามตรง
+  ///
+  /// เดิมเป็น `@default(now())` ซึ่งแปลว่าทุกแถวดู "ซิงก์แล้ว" เสมอ
+  /// ทั้งที่ไม่เคยมีการซิงก์เกิดขึ้นจริงสักครั้ง
+  syncedAt    DateTime? @map("synced_at") @db.Timestamptz(3)
+
+  @@map("profile_cache")
+}
+
+model Reel {
+  id             String   @id @default(uuid())
+  title          String
+  caption        String?
+  assetId        String   @unique @map("asset_id")
+  durationMs     Int      @map("duration_ms") // บังคับ <= 60000 ที่ชั้น DTO เพื่อคุมค่าข้อมูลขาออก
+  authorCoreUserId String   @map("author_core_user_id")
+  likeCount      Int      @default(0) @map("like_count")
+  viewCount      Int      @default(0) @map("view_count")
+  /// ตัวนับรีโพสต์เก็บล่วงหน้าเหมือน likeCount — ฟีดไม่ต้อง COUNT ทุกคลิป
+  repostCount    Int      @default(0) @map("repost_count")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  asset    Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  likes    ReelLike[]
+  comments ReelComment[]
+  views    ReelView[]
+  reposts  ReelRepost[]
+
+  @@index([createdAt(sort: Desc), id])
+  @@index([authorCoreUserId, createdAt(sort: Desc)])
+  @@map("reels")
+}
+
+/// รีโพสต์คลิปของคนอื่นขึ้นแท็บ "รีโพสต์" บนโปรไฟล์ตัวเอง (Instagram Repost)
+///
+/// ชี้ไปที่คลิปเดิม ไม่คัดลอก — เจ้าของลบคลิปเมื่อไหร่ รีโพสต์หายตามด้วย CASCADE
+model ReelRepost {
+  reelId     String   @map("reel_id")
+  coreUserId String   @map("core_user_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  reel Reel @relation(fields: [reelId], references: [id], onDelete: Cascade)
+
+  @@id([reelId, coreUserId]) // รีโพสต์ซ้ำเป็นไปไม่ได้ตั้งแต่ระดับฐานข้อมูล
+  @@index([coreUserId, createdAt(sort: Desc)])
+  @@map("reel_reposts")
+}
+
+model ReelLike {
+  reelId    String   @map("reel_id")
+  coreUserId  String @map("core_user_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  reel Reel @relation(fields: [reelId], references: [id], onDelete: Cascade)
+
+  @@id([reelId, coreUserId]) // กดไลก์ซ้ำเป็นไปไม่ได้ตั้งแต่ระดับฐานข้อมูล
+  @@index([coreUserId, createdAt(sort: Desc)])
+  @@map("reel_likes")
+}
+
+model ReelComment {
+  id             String    @id @default(uuid())
+  reelId         String    @map("reel_id")
+  authorCoreUserId String    @map("author_core_user_id")
+  content        String    @db.VarChar(1000)
+
+  /// ตอบกลับความคิดเห็นแบบ Instagram — **ลึกได้ชั้นเดียว** (บังคับที่ชั้น service)
+  /// ตอบคำตอบอีกทีต้องผูกกับความคิดเห็นต้นเรื่อง เหมือนที่ Instagram ทำ
+  parentId   String? @map("parent_id")
+  /// ตัวนับเก็บล่วงหน้า — แผงความคิดเห็นโหลดทีละ 20 แถว ถ้า COUNT ต่อแถวจะเป็น N+1
+  likeCount  Int     @default(0) @map("like_count")
+  replyCount Int     @default(0) @map("reply_count")
+
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  reel Reel @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  parent  ReelComment?      @relation("ReelCommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies ReelComment[]     @relation("ReelCommentThread")
+  likes   ReelCommentLike[]
+
+  @@index([reelId, createdAt(sort: Desc)])
+  @@index([parentId, createdAt]) // คำตอบของความคิดเห็นหนึ่ง เรียงเก่าไปใหม่
+  @@index([authorCoreUserId, createdAt(sort: Desc)]) // "กิจกรรมของคุณ" → ความคิดเห็น
+  @@map("reel_comments")
+}
+
+/// ใจบนความคิดเห็นใต้คลิป — คีย์ (comment, user) ทำให้กดซ้ำไม่เพิ่มยอดตั้งแต่ระดับฐานข้อมูล
+model ReelCommentLike {
+  commentId  String   @map("comment_id")
+  coreUserId String   @map("core_user_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  comment ReelComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, coreUserId])
+  @@index([coreUserId, createdAt(sort: Desc)])
+  @@map("reel_comment_likes")
+}
+
+model Post {
+  id             String   @id @default(uuid())
+  title          String
+  content        String   @db.VarChar(8000)
+  courseTag      String?  @map("course_tag")
+  authorCoreUserId String   @map("author_core_user_id")
+  commentCount   Int      @default(0) @map("comment_count")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  comments PostComment[]
+  media    PostMedia[]
+
+  @@index([createdAt(sort: Desc), id])
+  @@index([courseTag, createdAt(sort: Desc)])
+  @@index([authorCoreUserId, createdAt(sort: Desc)])
+  @@map("posts")
+}
+
+/// รูปและวิดีโอของโพสต์ (โพสต์หลายรูปแบบ Instagram) — เรียงตาม position
+///
+/// ตารางกลางแทนคอลัมน์ post_id บน assets เพราะต้องเก็บลำดับ และ asset หนึ่ง
+/// ใช้ได้ที่เดียว (unique) เหมือนคลิปและสตอรี่ — กันเอาไฟล์เดิมไปโพสต์ซ้ำ
+model PostMedia {
+  postId   String @map("post_id")
+  assetId  String @unique @map("asset_id")
+  position Int
+
+  post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@id([postId, position])
+  @@map("post_media")
+}
+
+model PostComment {
+  id             String    @id @default(uuid())
+  postId         String    @map("post_id")
+  authorCoreUserId String    @map("author_core_user_id")
+  content        String    @db.VarChar(4000)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([authorCoreUserId, createdAt(sort: Desc)]) // "กิจกรรมของคุณ" → ความคิดเห็น
+  @@map("post_comments")
+}
+
+model Channel {
+  id        String      @id @default(uuid())
+  kind      ChannelKind
+  name      String? // DM ไม่มีชื่อ
+  courseTag String?     @map("course_tag")
+  maxSeats  Int         @default(8) @map("max_seats") // เพดานห้องเสียง — บังคับที่ชั้น service
+  /// สร้างห้องนี้ไว้เพื่ออะไร — บังคับกรอกตอนสร้าง (ห้องเก่าและ DM เป็น null)
+  description String? @db.VarChar(300)
+  /// ผู้สร้างห้อง — ไม่เปลี่ยนตามผู้ดูแลห้อง เพราะเป็นประวัติ ไม่ใช่สิทธิ์ (DM เป็น null)
+  createdByCoreUserId String? @map("created_by_core_user_id")
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  members       ChannelMember[]
+  messages      Message[]
+  voiceSessions VoiceSession[]
+  meetings      Meeting[]
+  callFeedback  CallFeedback[]
+
+  @@index([kind, courseTag])
+  @@index([createdByCoreUserId])
+  @@map("channels")
+}
+
+model ChannelMember {
+  channelId   String      @map("channel_id")
+  coreUserId    String @map("core_user_id")
+  role        ChannelRole @default(MEMBER)
+  lastReadSeq Int         @default(0) @map("last_read_seq") // badge ยังไม่อ่าน ทำด้วยการลบเลข ไม่ต้อง COUNT
+  joinedAt    DateTime    @default(now()) @map("joined_at") @db.Timestamptz(3)
+
+  /// แฟ้มที่ผู้ใช้เลือกเอง — null = ให้ระบบตัดสิน (หลัก หรือ "คำขอข้อความ")
+  inboxFolder   InboxFolder? @map("inbox_folder")
+  /// ปักหมุดห้องไว้บนสุดของกล่องข้อความ "ของฉัน" — คนละเรื่องกับปักหมุดข้อความ (Message.pinnedAt)
+  inboxPinnedAt DateTime?    @map("inbox_pinned_at") @db.Timestamptz(3)
+  /// ปิดเสียงห้อง — ไม่สร้างแจ้งเตือนเรื่องข้อความให้คนนี้ แต่ยังนับยังไม่อ่านตามปกติ
+  muted         Boolean      @default(false)
+  /// "ลบแชท" แบบ Instagram — ซ่อนประวัติก่อนเวลานี้ **เฉพาะคนนี้** อีกฝ่ายยังเห็นครบ
+  ///
+  /// ไม่ลบแถวข้อความจริง เพราะข้อความเดียวกันเป็นของอีกฝ่ายด้วย และ Admin
+  /// ยังต้องตรวจย้อนหลังได้ (เหตุผลเดียวกับ Message.deletedAt)
+  clearedAt     DateTime?    @map("cleared_at") @db.Timestamptz(3)
+  /// ชื่อเล่นของสมาชิกคนนี้ "ในห้องนี้" (ตั้งโดยใครก็ได้ในห้อง DM/แชทกลุ่ม แบบ Instagram)
+  nickname      String?      @db.VarChar(40)
+  /// กด "ทำเครื่องหมายว่ายังไม่ได้อ่าน" — ล้างเองเมื่อบันทึกหมุดอ่านครั้งถัดไป
+  markedUnread  Boolean      @default(false) @map("marked_unread")
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, coreUserId])
+  @@index([coreUserId]) // "ห้องของฉัน" ต้องเร็ว
+  @@map("channel_members")
+}
+
+model Message {
+  id             String  @id @default(uuid())
+  seq            Int     @default(autoincrement()) // ลำดับจริงของข้อความ
+  clientNonce    String  @map("client_nonce") // กันส่งซ้ำตอนเน็ตกระตุก
+  content        String? @db.VarChar(4000)
+  channelId      String  @map("channel_id")
+  authorCoreUserId String  @map("author_core_user_id")
+
+  /// เธรดตอบกลับแบบ Discord/Teams — ข้อความแม่กับลูกอยู่ตารางเดียวกัน
+  /// ลูกไม่โผล่ในไทม์ไลน์หลัก แต่ยังกิน seq เดียวกันเพื่อไม่ให้ลำดับเพี้ยน
+  parentId   String? @map("parent_id")
+  replyCount Int     @default(0) @map("reply_count")
+
+  /// ปักหมุด — ห้องหนึ่งมีได้หลายอัน จำกัดจำนวนที่ชั้น service
+  pinnedAt         DateTime? @map("pinned_at") @db.Timestamptz(3)
+  pinnedByCoreUserId String?   @map("pinned_by_core_user_id")
+
+  /// "ตอบกลับ" แบบ Instagram — อ้างข้อความเดิมไว้เหนือข้อความใหม่ในไทม์ไลน์หลัก
+  ///
+  /// คนละเรื่องกับ parentId (เธรด): ข้อความนี้อยู่ในไทม์ไลน์หลักตามปกติ แค่มี
+  /// กล่องอ้างอิงติดมา · SetNull เพราะการลบห้องเป็นทางเดียวที่แถวหายจริง
+  replyToMessageId String?  @map("reply_to_message_id")
+  /// ส่งต่อมาจากที่อื่น — Instagram แสดงป้าย "ส่งต่อแล้ว" เหนือข้อความ
+  forwarded        Boolean  @default(false)
+  /// ข้อความที่เกิดจากการตอบสตอรี่ (ต้องมาคู่กับ embed ชนิด STORY)
+  storyReplyKind   StoryReplyKind? @map("story_reply_kind")
+  storyReplyEmoji  String?  @map("story_reply_emoji") @db.VarChar(32)
+
+  editedAt  DateTime? @map("edited_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3) // ลบแบบทิ้งร่องรอย ไว้ให้ Admin ตรวจ
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  channel     Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  attachments Asset[]
+  embed       MessageEmbed?
+  parent      Message?      @relation("MessageThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Message[]     @relation("MessageThread")
+  replyTo     Message?      @relation("MessageReply", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  quotedBy    Message[]     @relation("MessageReply")
+  /// ข้อความระบบ "บันทึกการโทร" แบบ Instagram — มีเฉพาะข้อความที่เกิดจากการโทร
+  callLog     CallLog? @relation("MessageCallLog")
+
+  @@unique([channelId, authorCoreUserId, clientNonce])
+  @@index([channelId, seq(sort: Desc)]) // query หลักของแชททั้งระบบ
+  @@index([parentId, seq]) // อ่านเธรดหนึ่งเส้น — ต้องตรงกับ orderBy: { seq } ที่ใช้จริง
+  @@index([channelId, pinnedAt(sort: Desc)]) // รายการปักหมุดของห้อง
+  @@map("messages")
+}
+
+/// รองรับ "In-Chat Reels Share & Preview" — mini player ในช่องแชท
+model MessageEmbed {
+  messageId String    @id @map("message_id")
+  kind      EmbedKind
+  refId     String    @map("ref_id") // Reel.id หรือ Post.id
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([kind, refId])
+  @@map("message_embeds")
+}
+
+model Asset {
+  id            String      @id @default(uuid())
+  ownerCoreUserId String      @map("owner_core_user_id")
+  bucket        String // "reels" | "attachments"
+  /// {coreUserId}/{uuid}.{ext} — coreUserId นำหน้าเพื่อคุมสิทธิ์ตาม prefix
+  ///
+  /// **ไม่ unique แล้ว** (1 ต.ค. 2569) — การส่งต่อข้อความสร้างแถว asset ใหม่
+  /// ที่ชี้ไฟล์เดิมในที่เก็บ (ดู sourceAssetId) แทนการคัดลอกไบต์ซ้ำ ไฟล์จริง
+  /// ถูกลบจากที่เก็บก็ต่อเมื่อไม่เหลือแถวไหนชี้อยู่แล้ว (AssetsService.remove)
+  objectPath    String      @map("object_path")
+  fileName      String      @map("file_name")
+  mimeType      String      @map("mime_type") // ค่าที่ยืนยันจาก magic bytes แล้ว ไม่ใช่ที่ client แจ้ง
+  kind          AssetKind
+  sizeBytes     BigInt      @default(0) @map("size_bytes") // ขนาดจริงหลัง commit
+  status        AssetStatus @default(PENDING)
+  messageId     String?     @map("message_id")
+  /// แถวนี้เป็นสำเนาจากการส่งต่อ — ชี้ไฟล์เดียวกับต้นฉบับ และ **ไม่นับโควตา**
+  /// ของผู้ส่งต่อ (ไบต์ไม่ได้ถูกเก็บเพิ่ม) · null = ไฟล์ที่อัปโหลดเอง
+  sourceAssetId String?     @map("source_asset_id")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  message Message?         @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  reel    Reel?
+  story   Story?
+  /// ด้านย้อนกลับของ PostMedia.asset — ตัวพิมพ์เล็กล้วนด้วยเหตุผลเดียวกับ `member` ด้านล่าง
+  gallery PostMedia?
+  /// สมาชิกที่ใช้ไฟล์นี้เป็นรูปปกโปรไฟล์ — ด้านย้อนกลับของ
+  /// `SubsystemMember.cover` ไม่ใช่คอลัมน์จริงในตาราง assets
+  ///
+  /// ชื่อเป็นตัวพิมพ์เล็กล้วนโดยเจตนา: เดิมชื่อ `coverOf` แล้วกฎ `DD-03`
+  /// เรียกร้องให้ใส่ `@map("cover_of")` แต่ Prisma **ห้าม** ใส่ @map บน
+  /// ฟิลด์ความสัมพันธ์ (`P1012`) — เป็นกฎที่ทำตามไม่ได้ทั้งสองทาง
+  /// สคริปต์ข้ามเฉพาะบรรทัดที่มีคำว่า @relation ซึ่งด้านย้อนกลับไม่มี
+  /// TODO(PL): แจ้ง standards ให้ข้ามฟิลด์ที่ type เป็นชื่อ model ด้วย
+  member  SubsystemMember?
+
+  @@index([ownerCoreUserId, createdAt(sort: Desc)])
+  @@index([status, createdAt]) // ให้ cron เก็บกวาด PENDING ที่ค้าง
+  @@index([objectPath]) // นับว่ายังมีแถวไหนชี้ไฟล์นี้อยู่ก่อนลบจากที่เก็บ
+  @@map("assets")
+}
+
+model VoiceSession {
+  id        String    @id @default(uuid())
+  channelId String    @map("channel_id")
+  startedAt DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz(3)
+
+  channel      Channel            @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  participants VoiceParticipant[]
+
+  @@index([channelId, startedAt(sort: Desc)])
+  @@map("voice_sessions")
+}
+
+model VoiceParticipant {
+  id        String    @id @default(uuid())
+  sessionId String    @map("session_id")
+  coreUserId  String @map("core_user_id")
+  joinedAt  DateTime  @default(now()) @map("joined_at") @db.Timestamptz(3)
+  leftAt    DateTime? @map("left_at") @db.Timestamptz(3)
+
+  /// สถานะในห้องเสียงที่ client แจ้งเอง — ให้แถบข้างแบบ Discord แสดงไอคอนใต้ชื่อได้
+  /// (เสียงจริงวิ่ง P2P เซิร์ฟเวอร์รู้ได้จากที่ client บอกเท่านั้น)
+  muted     Boolean   @default(false)
+  deafened  Boolean   @default(false)
+  video     Boolean   @default(false)
+  sharing   Boolean   @default(false)
+
+  session VoiceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([coreUserId, joinedAt(sort: Desc)])
+  @@map("voice_participants")
+}
+
+model Report {
+  id                 String       @id @default(uuid())
+  reporterCoreUserId   String       @map("reporter_core_user_id")
+  targetKind         ReportTarget @map("target_kind")
+  targetId           String       @map("target_id")
+  reason             String       @db.VarChar(1000)
+  status             ReportStatus @default(OPEN)
+  resolvedByCoreUserId String?      @map("resolved_by_core_user_id")
+  resolvedAt         DateTime?    @map("resolved_at") @db.Timestamptz(3)
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([reporterCoreUserId, targetKind, targetId]) // รายงานเรื่องเดิมซ้ำไม่ได้
+  @@index([status, createdAt])
+  @@map("reports")
+}
+
+model Notification {
+  id       String           @id @default(uuid())
+  coreUserId String @map("core_user_id") // ผู้รับ
+  kind     NotificationKind
+  refId    String           @map("ref_id") // id ของสิ่งที่ถูกกระทำ ใช้พาไปหน้าที่เกี่ยวข้อง
+
+  /// ใครเป็นคนทำ — ถ้าไม่มีฟิลด์นี้ การแจ้งเตือนจะบอกได้แค่ว่า
+  /// "มีคนทำอะไรกับอะไร" แล้วหน้าบ้านต้องยิงถามเพิ่มทีละรายการ
+  actorCoreUserId String? @map("actor_core_user_id")
+
+  /// บริบทเพิ่มที่ทำให้แสดงผลได้ในหนึ่ง query เช่น ชื่อห้อง อิโมจิที่กด
+  /// ตัวอย่างข้อความ — เป็น snapshot ตอนเกิดเหตุ ไม่ใช่แหล่งความจริง
+  payload Json?
+
+  readAt    DateTime? @map("read_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([coreUserId, readAt, createdAt(sort: Desc)]) // เฉพาะตัวกรอง "ยังไม่อ่าน"
+  @@index([coreUserId, createdAt(sort: Desc)]) // รายการปกติ (ไม่กรอง) ซึ่งเป็นค่าเริ่มต้น
+  @@map("notifications")
+}
+
+/// Audit log ของระบบย่อย — Blueprint หน้า 3 กำหนดให้ Admin Panel กลางดู Audit Log ได้
+model AuditLog {
+  id              String   @id @default(uuid())
+  actorCoreUserId   String   @map("actor_core_user_id")
+  actorCoreRole String   @map("actor_core_role")
+  action          String // เช่น "reel.delete", "member.role_change"
+  targetKind      String   @map("target_kind")
+  targetId        String   @map("target_id")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([actorCoreUserId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)]) // แผงผู้ดูแลเปิดมาแบบไม่กรอง = เรียงตามเวลาล้วน
+  @@map("audit_logs")
+}
+
+/// กราฟการติดตาม — รากฐานของฟีด "คนที่ฉันติดตาม"
+///
+/// เก็บทิศทางเดียว (follower → following) แบบ Instagram ไม่ใช่การเป็นเพื่อน
+/// สองทางแบบ Facebook เพราะในบริบทคณะ อาจารย์มีผู้ติดตามหลักร้อย
+/// แต่ไม่ควรต้องกดตอบรับทีละคน — ความสัมพันธ์สองทางคำนวณเอาได้
+/// ด้วยการเช็คว่ามีทั้งสองแถว (ดู FollowsService.relationWith)
+model Follow {
+  followerCoreUserId  String   @map("follower_core_user_id") // คนกดติดตาม
+  followingCoreUserId String   @map("following_core_user_id") // คนถูกติดตาม
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([followerCoreUserId, followingCoreUserId])
+  @@index([followingCoreUserId, createdAt(sort: Desc)]) // "ใครติดตามฉันบ้าง"
+  @@index([followerCoreUserId, createdAt(sort: Desc)]) // "ฉันติดตามใครบ้าง"
+  @@map("follows")
+}
+
+/// อิโมจิรีแอ็กชัน ใช้ตารางเดียวกับทุกเป้าหมาย
+///
+/// ไม่แยกตารางต่อชนิด เพราะการนับและการดึง "รีแอ็กชันของฉัน" เขียนครั้งเดียว
+/// แล้วใช้ได้ทั้งแชท กระดานข่าว และคลิป — ต้นทุนคือ FK ตรวจไม่ได้ที่ระดับ DB
+/// จึงต้องตรวจว่าเป้าหมายมีจริงที่ชั้น service ทุกครั้ง
+model Reaction {
+  id         String         @id @default(uuid())
+  targetKind ReactionTarget @map("target_kind")
+  targetId   String         @map("target_id")
+  coreUserId   String @map("core_user_id")
+  /// อิโมจิมาตรฐาน RGI ตัวเดียว — ลำดับ ZWJ ที่ยาวที่สุดราว 10 code point จึงเผื่อไว้ 32
+  emoji      String         @db.VarChar(32)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([targetKind, targetId, coreUserId, emoji]) // อิโมจิเดิมซ้ำไม่ได้
+  @@index([targetKind, targetId]) // นับรวมของโพสต์หนึ่ง
+  @@index([coreUserId, createdAt(sort: Desc)])
+  @@map("reactions")
+}
+
+/// รายการที่บันทึกไว้ดูทีหลัง — เห็นได้เฉพาะเจ้าของเท่านั้น
+model Bookmark {
+  coreUserId   String @map("core_user_id")
+  targetKind BookmarkTarget @map("target_kind")
+  targetId   String         @map("target_id")
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([coreUserId, targetKind, targetId])
+  @@index([coreUserId, createdAt(sort: Desc)])
+  @@map("bookmarks")
+}
+
+/// คอลเลกชันของที่บันทึกไว้ (Instagram "คอลเลกชั่น") — เห็นได้เฉพาะเจ้าของ
+///
+/// เป็นแค่ "ป้าย" ที่แปะบนของที่บันทึกไว้แล้ว ไม่ใช่ที่เก็บอีกชุดหนึ่ง —
+/// ของในคอลเลกชันต้องอยู่ใน bookmarks ก่อนเสมอ และเลิกบันทึกเมื่อไหร่
+/// ก็หลุดจากทุกคอลเลกชันของเจ้าของไปด้วย (บังคับที่ชั้น service)
+model BookmarkCollection {
+  id              String   @id @default(uuid())
+  ownerCoreUserId String   @map("owner_core_user_id")
+  name            String   @db.VarChar(60)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  items BookmarkCollectionItem[]
+
+  @@index([ownerCoreUserId, createdAt(sort: Desc)])
+  @@map("bookmark_collections")
+}
+
+/// ไม่มี FK ไปที่ bookmarks เพราะคีย์ของ bookmarks มี coreUserId ซึ่งแถวนี้
+/// รู้ผ่านคอลเลกชันอยู่แล้ว — การเก็บซ้ำจะเปิดช่องให้สองค่าไม่ตรงกัน
+model BookmarkCollectionItem {
+  collectionId String         @map("collection_id")
+  targetKind   BookmarkTarget @map("target_kind")
+  targetId     String         @map("target_id")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  collection BookmarkCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, targetKind, targetId])
+  @@index([collectionId, createdAt(sort: Desc)])
+  @@index([targetKind, targetId]) // เลิกบันทึกแล้วต้องลบออกจากทุกคอลเลกชันได้เร็ว
+  @@map("bookmark_collection_items")
+}
+
+/// นัดประชุม/นัดติวล่วงหน้าแบบ Microsoft Teams
+///
+/// ผูกกับห้องเสมอ ไม่ลอยเดี่ยว เพราะสิทธิ์การเห็นนัดยืมมาจากสมาชิกของห้อง
+/// พอถึงเวลา ผู้เข้าร่วมกดเข้าห้องเสียงของห้องนั้นได้เลย ไม่ต้องมีลิงก์แยก
+model Meeting {
+  id                String        @id @default(uuid())
+  channelId         String        @map("channel_id")
+  title             String        @db.VarChar(200)
+  agenda            String?       @db.VarChar(4000)
+  startsAt          DateTime      @map("starts_at") @db.Timestamptz(3)
+  endsAt            DateTime      @map("ends_at") @db.Timestamptz(3)
+  status            MeetingStatus @default(SCHEDULED)
+  createdByCoreUserId String        @map("created_by_core_user_id")
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, startsAt])
+  @@index([status, startsAt]) // "นัดที่กำลังจะถึง" ของทั้งระบบ
+  @@map("meetings")
+}
+
+/// ผู้ชมคลิป — นับ "คนที่เคยดู" ไม่ใช่ "จำนวนครั้งที่เล่น"
+///
+/// เลือกแบบนี้เพราะจำนวนครั้งที่เล่นปั่นได้ด้วยการกดรีเฟรชรัว ๆ แล้วยอดวิว
+/// จะกลายเป็นตัวเลขที่ไม่มีความหมาย ส่วนคีย์ (reelId, coreUserId) ทำให้
+/// คนหนึ่งนับได้ครั้งเดียวตั้งแต่ระดับฐานข้อมูล ไม่ต้องเชื่อ client
+///
+/// ผลข้างเคียงที่ยอมรับ: ตารางนี้โตตามจำนวน (คลิป × คนดู) ซึ่งใหญ่กว่า
+/// ตัวนับเดี่ยว ๆ แต่แลกกับยอดที่เชื่อถือได้และรู้ได้ว่าใครดูคลิปตัวเองบ้าง
+model ReelView {
+  reelId   String   @map("reel_id")
+  coreUserId String @map("core_user_id")
+  viewedAt DateTime @default(now()) @map("viewed_at") @db.Timestamptz(3)
+
+  reel Reel @relation(fields: [reelId], references: [id], onDelete: Cascade)
+
+  @@id([reelId, coreUserId])
+  @@index([coreUserId, viewedAt(sort: Desc)]) // "คลิปที่ฉันดูไปแล้ว"
+  @@map("reel_views")
+}
+
+/// สตอรี่ 24 ชั่วโมง (Instagram / Facebook)
+///
+/// **การหมดอายุบังคับตอนอ่าน ไม่ใช่ตอนลบ** — คิวรีของแถวสตอรี่มีเงื่อนไข
+/// `expiresAt > now()` ฉะนั้นสตอรี่ที่หมดอายุจะหายจากแถวสตอรี่ทันทีที่ถึงเวลา
+///
+/// **และไม่ถูกลบเมื่อหมดอายุอีกแล้ว** (29 ก.ย. 2569) — Instagram เก็บสตอรี่ที่
+/// หมดอายุไว้ใน "คลังสตอรี่" ที่เจ้าของเท่านั้นเห็น และไฮไลต์บนโปรไฟล์ก็ชี้ไปที่
+/// สตอรี่เก่าเหล่านั้น ถ้ายังลบทิ้งตอนหมดอายุ ไฮไลต์จะว่างเปล่าในวันถัดไป
+/// ตัวเก็บกวาดเดิม (StoriesSweeper) จึงถูกถอดออก — สตอรี่หายจากระบบเมื่อเจ้าของลบเองเท่านั้น
+model Story {
+  id             String  @id @default(uuid())
+  authorCoreUserId String  @map("author_core_user_id")
+  assetId        String  @unique @map("asset_id")
+  caption        String? @db.VarChar(300)
+
+  /// เก็บเวลาหมดอายุไว้เป็นค่าตายตัว ไม่คำนวณจาก createdAt + 24 ชม. ตอนคิวรี
+  /// เพราะถ้าวันหนึ่งเปลี่ยนอายุเป็น 48 ชม. สตอรี่เก่าจะยืดอายุตามย้อนหลัง
+  /// ซึ่งไม่ใช่สิ่งที่ผู้โพสต์ตกลงไว้ตอนโพสต์
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  asset Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  views StoryView[]
+  highlightItems HighlightItem[]
+  coverOf        Highlight[]     @relation("HighlightCover")
+
+  @@index([authorCoreUserId, createdAt])
+  @@index([expiresAt]) // แถวสตอรี่กรองเฉพาะที่ยังไม่หมดอายุ
+  @@map("stories")
+}
+
+/// ไฮไลต์บนโปรไฟล์ (Instagram Highlights) — ชุดสตอรี่ที่เจ้าของเลือกโชว์ถาวร
+///
+/// ชี้ไปที่แถว Story ตรง ๆ ไม่คัดลอกไฟล์ เพราะสตอรี่ไม่ถูกลบตอนหมดอายุแล้ว
+/// (ดู doc ของ Story) และเจ้าของลบสตอรี่เมื่อไหร่ก็หลุดจากไฮไลต์ตามไปด้วย
+model Highlight {
+  id              String   @id @default(uuid())
+  ownerCoreUserId String   @map("owner_core_user_id")
+  title           String   @db.VarChar(40)
+  /// null = ใช้สตอรี่ชิ้นแรกของไฮไลต์เป็นหน้าปก
+  coverStoryId    String?  @map("cover_story_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  coverStory Story?          @relation("HighlightCover", fields: [coverStoryId], references: [id], onDelete: SetNull)
+  items      HighlightItem[]
+
+  @@index([ownerCoreUserId, createdAt(sort: Desc)])
+  @@index([coverStoryId])
+  @@map("highlights")
+}
+
+model HighlightItem {
+  highlightId String @map("highlight_id")
+  storyId     String @map("story_id")
+  position    Int
+
+  highlight Highlight @relation(fields: [highlightId], references: [id], onDelete: Cascade)
+  story     Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@id([highlightId, storyId]) // สตอรี่เดิมอยู่ในไฮไลต์เดียวกันซ้ำไม่ได้
+  @@index([storyId])
+  @@map("highlight_items")
+}
+
+/// โน้ตแบบ Instagram — ข้อความสั้นลอยเหนือรูปโปรไฟล์ในกล่องข้อความ อายุ 24 ชั่วโมง
+///
+/// คีย์คือ coreUserId เพราะคนหนึ่งมีโน้ตได้อันเดียว — โพสต์ใหม่ = ทับของเดิม
+/// การหมดอายุบังคับตอนอ่าน (expiresAt > now) เหมือนสตอรี่ จึงไม่ต้องมีตัวลบ
+model Note {
+  coreUserId String   @id @map("core_user_id")
+  text       String   @db.VarChar(60)
+  audience   NoteAudience @default(MUTUAL_FOLLOWERS)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("notes")
+}
+
+/// การบล็อก — ทิศทางเดียวในตาราง แต่ผลบังคับ **ทั้งสองทาง** ที่ชั้น service
+///
+/// เก็บทิศทางไว้เพราะต้องรู้ว่าใครบล็อกใคร (ปลดบล็อกได้เฉพาะคนที่บล็อก และ
+/// โปรไฟล์ตอบ 404 เฉพาะกับคนที่ถูกบล็อก) ส่วนการซ่อนจากฟีด ค้นหา แชท ทำทั้งคู่
+model Block {
+  blockerCoreUserId String   @map("blocker_core_user_id")
+  blockedCoreUserId String   @map("blocked_core_user_id")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([blockerCoreUserId, blockedCoreUserId])
+  @@index([blockedCoreUserId])
+  @@map("blocks")
+}
+
+/// เพื่อนสนิท (Instagram Close Friends) — รายชื่อส่วนตัวของเจ้าของ อีกฝ่ายไม่รู้
+model CloseFriend {
+  ownerCoreUserId  String   @map("owner_core_user_id")
+  friendCoreUserId String   @map("friend_core_user_id")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([ownerCoreUserId, friendCoreUserId])
+  @@index([friendCoreUserId])
+  @@map("close_friends")
+}
+
+/// การตั้งค่าการแจ้งเตือน — ไม่มีแถว = ค่าเริ่มต้นทั้งหมด (เปิดทุกอย่าง)
+///
+/// แยกตารางจาก subsystem_members เพราะเป็นกลุ่มค่าที่อ่านทุกครั้งที่สร้าง
+/// แจ้งเตือน ไม่ใช่ข้อมูลโปรไฟล์ · การจับคู่กับ NotificationKind อยู่ที่
+/// notification-preferences.dto.ts (PREFERENCE_OF_KIND)
+model NotificationPreference {
+  coreUserId      String         @id @map("core_user_id")
+  pausedUntil     DateTime?      @map("paused_until") @db.Timestamptz(3)
+  likes           NotifyAudience @default(EVERYONE)
+  comments        NotifyAudience @default(EVERYONE)
+  mentions        NotifyAudience @default(EVERYONE)
+  commentLikes    Boolean        @default(true) @map("comment_likes")
+  newFollowers    Boolean        @default(true) @map("new_followers")
+  reposts         Boolean        @default(true)
+  storyReplies    Boolean        @default(true) @map("story_replies")
+  messageRequests Boolean        @default(true) @map("message_requests")
+  groupRequests   Boolean        @default(true) @map("group_requests")
+  messages        NotifyMessages @default(PRIMARY_GENERAL)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("notification_preferences")
+}
+
+/// คะแนนหลังวางสาย — ให้ทีมดูคุณภาพสายเสียง/วิดีโอแบบ P2P ที่ไม่มีเซิร์ฟเวอร์กลางวัด
+model CallFeedback {
+  id          String   @id @default(uuid())
+  channelId   String   @map("channel_id")
+  coreUserId  String   @map("core_user_id")
+  rating      Int
+  durationSec Int?     @map("duration_sec")
+  kind        CallKind
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt(sort: Desc)])
+  @@map("call_feedback")
+}
+
+/// ใครดูสตอรี่ไปแล้ว
+///
+/// สองหน้าที่: ทำวงแหวน "ยังไม่ดู" รอบรูปโปรไฟล์ และทำรายชื่อผู้ชม
+/// ที่เจ้าของสตอรี่เท่านั้นที่เห็น (เหมือน Instagram)
+model StoryView {
+  storyId  String   @map("story_id")
+  coreUserId String @map("core_user_id")
+  viewedAt DateTime @default(now()) @map("viewed_at") @db.Timestamptz(3)
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, coreUserId])
+  @@index([coreUserId]) // "สตอรี่ที่ฉันดูไปแล้ว" ตอนคำนวณวงแหวน
+  @@map("story_views")
+}
+
+/// สถานะของสายที่บันทึกไว้ — RINGING / ONGOING เป็นสถานะชั่วคราวระหว่างสาย
+enum CallStatus {
+  RINGING
+  ONGOING
+  ANSWERED
+  MISSED
+  DECLINED
+  CANCELLED
+}
+
+/// บันทึกการโทรในแชท (Instagram: "การโทรด้วยเสียงสิ้นสุดลงแล้ว · 3 นาที")
+///
+/// หนึ่งสาย = หนึ่งข้อความระบบในห้องนั้น ผู้เขียนคือผู้โทร · ข้อความถูกสร้างตอน
+/// เริ่มโทรแล้วอัปเดตตามสัญญาณโทร (รับ/ปฏิเสธ/ยกเลิก/หมดเวลา/วางสาย)
+/// แยกตารางจาก messages เพราะเป็นข้อมูลของข้อความชนิดเดียว ไม่ใช่ทุกข้อความ
+model CallLog {
+  messageId        String     @id @map("message_id")
+  channelId        String     @map("channel_id")
+  /// voice session ที่สายนี้ใช้ — ผู้โทรหนึ่งคนมีบันทึกได้หนึ่งแถวต่อหนึ่ง session
+  sessionId        String     @map("session_id")
+  callerCoreUserId String     @map("caller_core_user_id")
+  media            CallKind
+  status           CallStatus @default(RINGING)
+  startedAt        DateTime   @default(now()) @map("started_at") @db.Timestamptz(3)
+  answeredAt       DateTime?  @map("answered_at") @db.Timestamptz(3)
+  endedAt          DateTime?  @map("ended_at") @db.Timestamptz(3)
+  durationSec      Int?       @map("duration_sec")
+
+  message Message @relation("MessageCallLog", fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, callerCoreUserId])
+  @@index([channelId, startedAt(sort: Desc)])
+  @@index([status, startedAt]) // เก็บกวาดสายที่ค้างหลังเซิร์ฟเวอร์รีสตาร์ต
+  @@map("call_logs")
+}
