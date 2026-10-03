@@ -5,7 +5,6 @@ import { VoiceRoomDock } from '@/components/csmju/voice-room-panel';
 import { MessagesDock } from '@/components/csmju/messages-dock';
 import { MobileTabBar, MobileTopBar } from '@/components/csmju/mobile-bars';
 import { QueryProvider } from '@/components/csmju/query-provider';
-import { MotionProvider } from '@/components/ui/motion-provider';
 import { SessionProvider } from '@/lib/csmju/session';
 
 /// เปลือกของแอป — หน้าตาแบบ Instagram บนเว็บ
@@ -25,8 +24,7 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
     // (อยู่ชั้นนอกของ CallProvider เพราะการโทรต้องสั่งให้ออกจากห้องเสียงก่อนได้)
     <QueryProvider>
       <SessionProvider>
-        <MotionProvider>
-          <VoiceRoomProvider>
+        <VoiceRoomProvider>
           <CallProvider>
             {/* h-dvh + overflow-hidden: แถบซ้ายอยู่กับที่ เนื้อหาเลื่อนในตัวเอง */}
             <div className="flex h-dvh overflow-hidden bg-background">
@@ -46,8 +44,7 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
               <VoiceRoomDock />
             </div>
           </CallProvider>
-          </VoiceRoomProvider>
-        </MotionProvider>
+        </VoiceRoomProvider>
       </SessionProvider>
     </QueryProvider>
   );

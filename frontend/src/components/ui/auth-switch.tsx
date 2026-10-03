@@ -1,7 +1,6 @@
 'use client';
 
-import { useId, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowRight, IdCard, LogIn, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -71,6 +70,21 @@ function coreUrl(base: string, callbackPath?: string): string {
   return `${base}?redirect_uri=${encodeURIComponent(callback)}`;
 }
 
+/// เส้นเวลาของสปริงเดิม (stiffness 320, damping 30, mass 1) สุ่มทุก 30ms
+/// ตลอด 450ms — เขียนเป็น `linear()` ของ CSS ได้เส้นเดียวกับที่ framer-motion
+/// เคยคำนวณทีละเฟรม รวมถึงการเลยเป้าเล็กน้อย (~0.8%) ก่อนหยุด
+const SPRING_EASING =
+  'linear(0, 0.107, 0.316, 0.527, 0.701, 0.827, 0.911, 0.961, 0.989, 1.002, 1.007, 1.008, 1.007, 1.005, 1.003, 1)';
+const SPRING_MS = 450;
+
+/// ผู้ใช้ตั้งค่า "ลดการเคลื่อนไหว" ไว้ที่ระบบหรือไม่ (jsdom ไม่มี matchMedia = ไม่ได้ตั้ง)
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
 export function AuthSwitch({
   signInUrl,
   signUpUrl,
@@ -88,6 +102,48 @@ export function AuthSwitch({
   const active = TABS.find((tab) => tab.mode === mode) ?? TABS[0];
   const target = mode === 'signin' ? signInUrl : signUpUrl;
 
+  /// ตัวชี้ (พื้นขาวใต้แท็บที่เลือก) เลื่อนจากแท็บเดิมไปแท็บใหม่
+  ///
+  /// ตัวชี้อยู่ "ในปุ่มของแท็บที่เลือก" ตลอด หน้าตาตอนหยุดนิ่งจึงเหมือนเดิมทุกพิกเซล
+  /// การเลื่อนทำแบบ FLIP เหมือนที่ framer-motion (layoutId) ทำให้เดิม:
+  /// จำตำแหน่งตัวชี้ก่อนสลับ → React ย้ายมันไปแท็บใหม่ → ดึงกลับไปวางที่เดิม
+  /// ด้วย transform แล้วปล่อยให้ transition พามันมาที่ใหม่
+  const indicatorRef = useRef<HTMLSpanElement | null>(null);
+  const fromRect = useRef<DOMRect | null>(null);
+
+  function select(next: AuthMode) {
+    if (next === mode) return;
+
+    fromRect.current = indicatorRef.current?.getBoundingClientRect() ?? null;
+    setMode(next);
+  }
+
+  useLayoutEffect(() => {
+    const from = fromRect.current;
+    const node = indicatorRef.current;
+
+    fromRect.current = null;
+
+    // ผู้ใช้ที่ตั้ง "ลดการเคลื่อนไหว" เห็นเป็นการสลับทันที (เดิม MotionConfig
+    // reducedMotion="user" ทำหน้าที่นี้)
+    if (!from || !node || prefersReducedMotion()) return;
+
+    const to = node.getBoundingClientRect();
+    if (!to.width) return;
+
+    const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+    const scale = from.width / to.width;
+
+    if (!dx && scale === 1) return;
+
+    node.style.transition = 'none';
+    node.style.transform = `translateX(${dx}px) scaleX(${scale})`;
+    // บังคับให้เบราว์เซอร์วาดตำแหน่งตั้งต้นก่อน ไม่งั้นมันจะข้ามไปตำแหน่งสุดท้ายเลย
+    void node.offsetWidth;
+    node.style.transition = `transform ${SPRING_MS}ms ${SPRING_EASING}`;
+    node.style.transform = '';
+  }, [mode]);
+
   /// ลูกศรซ้าย-ขวาต้องเลื่อนแท็บได้
   ///
   /// แถบแบบนี้ประกาศตัวเป็น tablist ซึ่งผู้ใช้คีย์บอร์ดคาดหวังว่าลูกศรจะใช้ได้
@@ -99,7 +155,7 @@ export function AuthSwitch({
 
     const next: AuthMode = mode === 'signin' ? 'signup' : 'signin';
 
-    setMode(next);
+    select(next);
     tabRefs.current[next]?.focus();
   }
 
@@ -132,7 +188,7 @@ export function AuthSwitch({
               // แท็บที่ไม่ได้เลือกต้องออกจากลำดับ Tab — ผู้ใช้ควรเข้ามาที่แถบ
               // ครั้งเดียวแล้วเลื่อนด้วยลูกศร ไม่ใช่ Tab ทีละอัน
               tabIndex={selected ? 0 : -1}
-              onClick={() => setMode(tab.mode)}
+              onClick={() => select(tab.mode)}
               onKeyDown={onKeyDown}
               className={cn(
                 'relative z-10 flex flex-1 items-center justify-center gap-1.5',
@@ -145,14 +201,9 @@ export function AuthSwitch({
               {tab.label}
 
               {selected && (
-                // ตัวชี้เลื่อนตามด้วย layoutId — framer-motion จะเคลื่อนจาก
-                // ตำแหน่งเดิมไปตำแหน่งใหม่ให้เอง ไม่ต้องคำนวณพิกัดเอง
-                //
-                // MotionProvider ที่ราก layout ตั้ง reducedMotion="user" ไว้
-                // ผู้ใช้ที่ตั้งค่า "ลดการเคลื่อนไหว" จะเห็นเป็นการสลับทันที
-                <motion.span
-                  layoutId={`${tabsId}-indicator`}
-                  transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+                // ตัวชี้ — การเลื่อนระหว่างแท็บอยู่ที่ useLayoutEffect ด้านบน
+                <span
+                  ref={indicatorRef}
                   className="absolute inset-0 -z-10 rounded-lg bg-card shadow-sm"
                 />
               )}

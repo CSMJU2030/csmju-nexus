@@ -18,8 +18,176 @@
    ─────────────────────────────────────────────────────────────── */
 
 @import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+
+/* ── แอนิเมชันเข้า/ออกของป๊อปอัป (animate-in fade-in-0 zoom-in-95 …) ─────────
+ *
+ * เดิมได้มาจากแพ็กเกจ tw-animate-css ซึ่งอยู่นอกรายชื่อ dependency ที่มาตรฐาน
+ * อนุญาต (ARC-02) จึงคัดลอกเฉพาะกฎที่โปรเจกต์ใช้จริงมาไว้ที่นี่ **ตัวอักษรต่อตัวอักษร**
+ * จาก tw-animate-css 1.4.0 (MIT, © 2025 Wombosvideo) — CSS ที่คอมไพล์ออกมาจึง
+ * เหมือนเดิมทุกบรรทัด
+ *
+ * หลักการ: `animate-in` เล่น keyframe `enter` จากค่าตั้งต้นที่คลาสอื่นตั้งไว้ใน
+ * ตัวแปร (`fade-in-0` ตั้งความทึบเริ่ม, `zoom-in-95` ตั้งขนาดเริ่ม,
+ * `slide-in-from-*` ตั้งระยะเลื่อนเริ่ม) ไปจนถึงค่าปกติของกล่อง ส่วน
+ * `animate-out` เล่น `exit` กลับทางกัน ความยาวใช้ `duration-*` ของ Tailwind เอง
+ *
+ * ตัด spin/blur/delay/repeat/direction/accordion/caret ออก เพราะไม่มีใครใช้ —
+ * ถ้าวันหน้าต้องใช้ ให้คัดลอกกฎนั้นจากต้นฉบับมาเพิ่มที่นี่
+ *
+ * `shadcn/tailwind.css` ที่เคย import ไว้ไม่ได้ให้อะไรที่โปรเจกต์ใช้เลย
+ * (variant data-open/data-closed, scroll-fade, shimmer ไม่มีที่ไหนเรียก) จึงเอาออกทั้งไฟล์
+ */
+@property --tw-animation-delay { syntax: "*"; inherits: false; initial-value: 0s; }
+@property --tw-animation-direction { syntax: "*"; inherits: false; initial-value: normal; }
+@property --tw-animation-duration { syntax: "*"; inherits: false; }
+@property --tw-animation-fill-mode { syntax: "*"; inherits: false; initial-value: none; }
+@property --tw-animation-iteration-count { syntax: "*"; inherits: false; initial-value: 1; }
+@property --tw-enter-blur { syntax: "*"; inherits: false; initial-value: 0; }
+@property --tw-enter-opacity { syntax: "*"; inherits: false; initial-value: 1; }
+@property --tw-enter-rotate { syntax: "*"; inherits: false; initial-value: 0; }
+@property --tw-enter-scale { syntax: "*"; inherits: false; initial-value: 1; }
+@property --tw-enter-translate-x { syntax: "*"; inherits: false; initial-value: 0; }
+@property --tw-enter-translate-y { syntax: "*"; inherits: false; initial-value: 0; }
+@property --tw-exit-blur { syntax: "*"; inherits: false; initial-value: 0; }
+@property --tw-exit-opacity { syntax: "*"; inherits: false; initial-value: 1; }
+@property --tw-exit-rotate { syntax: "*"; inherits: false; initial-value: 0; }
+@property --tw-exit-scale { syntax: "*"; inherits: false; initial-value: 1; }
+@property --tw-exit-translate-x { syntax: "*"; inherits: false; initial-value: 0; }
+@property --tw-exit-translate-y { syntax: "*"; inherits: false; initial-value: 0; }
+
+@theme inline {
+  --animation-fill-mode-none: none;
+  --animation-fill-mode-forwards: forwards;
+  --animation-fill-mode-backwards: backwards;
+  --animation-fill-mode-both: both;
+  --percentage-0: 0;
+  --percentage-5: .05;
+  --percentage-10: .1;
+  --percentage-15: .15;
+  --percentage-20: .2;
+  --percentage-25: .25;
+  --percentage-30: .3;
+  --percentage-35: .35;
+  --percentage-40: .4;
+  --percentage-45: .45;
+  --percentage-50: .5;
+  --percentage-55: .55;
+  --percentage-60: .6;
+  --percentage-65: .65;
+  --percentage-70: .7;
+  --percentage-75: .75;
+  --percentage-80: .8;
+  --percentage-85: .85;
+  --percentage-90: .9;
+  --percentage-95: .95;
+  --percentage-100: 1;
+  --percentage-translate-full: 1;
+  --animate-in: enter var(--tw-animation-duration,var(--tw-duration,.15s))var(--tw-ease,ease)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none);
+  --animate-out: exit var(--tw-animation-duration,var(--tw-duration,.15s))var(--tw-ease,ease)var(--tw-animation-delay,0s)var(--tw-animation-iteration-count,1)var(--tw-animation-direction,normal)var(--tw-animation-fill-mode,none);
+
+  @keyframes enter {
+    from {
+      opacity: var(--tw-enter-opacity,1);
+      transform: translate3d(var(--tw-enter-translate-x,0),var(--tw-enter-translate-y,0),0)scale3d(var(--tw-enter-scale,1),var(--tw-enter-scale,1),var(--tw-enter-scale,1))rotate(var(--tw-enter-rotate,0));
+      filter: blur(var(--tw-enter-blur,0));
+    }
+  }
+
+  @keyframes exit {
+    to {
+      opacity: var(--tw-exit-opacity,1);
+      transform: translate3d(var(--tw-exit-translate-x,0),var(--tw-exit-translate-y,0),0)scale3d(var(--tw-exit-scale,1),var(--tw-exit-scale,1),var(--tw-exit-scale,1))rotate(var(--tw-exit-rotate,0));
+      filter: blur(var(--tw-exit-blur,0));
+    }
+  }
+}
+
+@utility fill-mode-* {
+  animation-fill-mode: --value(--animation-fill-mode-*,"initial",[*]);
+  --tw-animation-fill-mode: --value(--animation-fill-mode-*,"initial",[*]);
+}
+
+@utility fade-in { --tw-enter-opacity: 0; }
+@utility fade-in-* {
+  --tw-enter-opacity: calc(--value(number)/100);
+  --tw-enter-opacity: --value(--percentage-*,[*]);
+}
+@utility fade-out { --tw-exit-opacity: 0; }
+@utility fade-out-* {
+  --tw-exit-opacity: calc(--value(number)/100);
+  --tw-exit-opacity: --value(--percentage-*,[*]);
+}
+
+@utility zoom-in { --tw-enter-scale: 0; }
+@utility zoom-in-* {
+  --tw-enter-scale: calc(--value(number)*1%);
+  --tw-enter-scale: calc(--value(ratio));
+  --tw-enter-scale: --value(--percentage-*,[*]);
+}
+@utility zoom-out { --tw-exit-scale: 0; }
+@utility zoom-out-* {
+  --tw-exit-scale: calc(--value(number)*1%);
+  --tw-exit-scale: calc(--value(ratio));
+  --tw-exit-scale: --value(--percentage-*,[*]);
+}
+
+@utility slide-in-from-top { --tw-enter-translate-y: -100%; }
+@utility slide-in-from-top-* {
+  --tw-enter-translate-y: calc(--value(integer)*var(--spacing)*-1);
+  --tw-enter-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*-100%);
+  --tw-enter-translate-y: calc(--value(ratio)*-100%);
+  --tw-enter-translate-y: calc(--value(--translate-*,[percentage],[length])*-1);
+}
+@utility slide-in-from-bottom { --tw-enter-translate-y: 100%; }
+@utility slide-in-from-bottom-* {
+  --tw-enter-translate-y: calc(--value(integer)*var(--spacing));
+  --tw-enter-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*100%);
+  --tw-enter-translate-y: calc(--value(ratio)*100%);
+  --tw-enter-translate-y: --value(--translate-*,[percentage],[length]);
+}
+@utility slide-in-from-left { --tw-enter-translate-x: -100%; }
+@utility slide-in-from-left-* {
+  --tw-enter-translate-x: calc(--value(integer)*var(--spacing)*-1);
+  --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%);
+  --tw-enter-translate-x: calc(--value(ratio)*-100%);
+  --tw-enter-translate-x: calc(--value(--translate-*,[percentage],[length])*-1);
+}
+@utility slide-in-from-right { --tw-enter-translate-x: 100%; }
+@utility slide-in-from-right-* {
+  --tw-enter-translate-x: calc(--value(integer)*var(--spacing));
+  --tw-enter-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%);
+  --tw-enter-translate-x: calc(--value(ratio)*100%);
+  --tw-enter-translate-x: --value(--translate-*,[percentage],[length]);
+}
+
+@utility slide-out-to-top { --tw-exit-translate-y: -100%; }
+@utility slide-out-to-top-* {
+  --tw-exit-translate-y: calc(--value(integer)*var(--spacing)*-1);
+  --tw-exit-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*-100%);
+  --tw-exit-translate-y: calc(--value(ratio)*-100%);
+  --tw-exit-translate-y: calc(--value(--translate-*,[percentage],[length])*-1);
+}
+@utility slide-out-to-bottom { --tw-exit-translate-y: 100%; }
+@utility slide-out-to-bottom-* {
+  --tw-exit-translate-y: calc(--value(integer)*var(--spacing));
+  --tw-exit-translate-y: calc(--value(--percentage-*,--percentage-translate-*)*100%);
+  --tw-exit-translate-y: calc(--value(ratio)*100%);
+  --tw-exit-translate-y: --value(--translate-*,[percentage],[length]);
+}
+@utility slide-out-to-left { --tw-exit-translate-x: -100%; }
+@utility slide-out-to-left-* {
+  --tw-exit-translate-x: calc(--value(integer)*var(--spacing)*-1);
+  --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*-100%);
+  --tw-exit-translate-x: calc(--value(ratio)*-100%);
+  --tw-exit-translate-x: calc(--value(--translate-*,[percentage],[length])*-1);
+}
+@utility slide-out-to-right { --tw-exit-translate-x: 100%; }
+@utility slide-out-to-right-* {
+  --tw-exit-translate-x: calc(--value(integer)*var(--spacing));
+  --tw-exit-translate-x: calc(--value(--percentage-*,--percentage-translate-*)*100%);
+  --tw-exit-translate-x: calc(--value(ratio)*100%);
+  --tw-exit-translate-x: --value(--translate-*,[percentage],[length]);
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -382,8 +550,9 @@
  *
  * ผู้ใช้ที่มีอาการเวียนศีรษะจากการเคลื่อนไหว (vestibular disorder) ตั้งค่านี้
  * ไว้ที่ระบบ แล้วคาดหวังว่าทุกเว็บจะเคารพมัน — ก่อนหน้านี้ทั้งโปรเจกต์ไม่มี
- * จุดไหนเคารพเลย ทั้งสปริงของ framer-motion จุดกะพริบของสายเรียกเข้า
- * และแถบความคืบหน้าของสตอรี่
+ * จุดไหนเคารพเลย ทั้งตัวชี้ที่เลื่อนในแถบเข้าสู่ระบบ จุดกะพริบของสายเรียกเข้า
+ * และแถบความคืบหน้าของสตอรี่ (ตัวชี้ของแถบเข้าสู่ระบบยังเช็กเองซ้ำอีกชั้นใน
+ * auth-switch.tsx เพื่อไม่ให้ขยับแม้แต่เฟรมเดียว)
  *
  * ไม่ตั้งเป็น 0s เพราะ transitionend/animationend จะไม่ยิง แล้วโค้ดที่รอ
  * event นั้นอยู่จะค้าง — 0.01ms สั้นจนมองไม่เห็นแต่ยังยิง event ตามปกติ
