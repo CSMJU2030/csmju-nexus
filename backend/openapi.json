@@ -1737,7 +1737,7 @@
     },
     "/api/v1/assets/maintenance/sweeps": {
       "post": {
-        "description": "ปกติตัวกวาดทำงานเองทุก 30 นาที — endpoint นี้มีไว้ให้กวาดทันทีตอนตรวจปัญหาพื้นที่เก็บไฟล์เต็ม",
+        "description": "ปกติตัวกวาดทำงานเองทุก 30 นาที — endpoint นี้มีไว้ให้กวาดทันทีตอนตรวจปัญหาพื้นที่เก็บไฟล์เต็ม · คืน { removed: PENDING ที่ค้าง, purged: ไฟล์ของเนื้อหาที่ถูกลบ (DELETED), orphanReactions: รีแอ็กชันที่เป้าหมายหายไปแล้ว }",
         "operationId": "AssetsController_sweep",
         "parameters": [],
         "responses": {
@@ -13595,7 +13595,8 @@
             "enum": [
               "PENDING",
               "READY",
-              "BLOCKED"
+              "BLOCKED",
+              "DELETED"
             ]
           },
           "createdAt": {

@@ -14,6 +14,7 @@ import {
   type StorageProvider,
 } from '../../common/storage/storage.provider.js';
 import type { PostModel } from '../../generated/prisma/models.js';
+import { AssetsService } from '../assets/assets.service.js';
 import { BlocksService } from '../blocks/blocks.service.js';
 import { FollowsService } from '../follows/follows.service.js';
 import { PrivacyService } from '../settings/privacy.service.js';
@@ -40,6 +41,7 @@ export class PostsService {
     private readonly reactions: ReactionsService,
     private readonly privacy: PrivacyService,
     private readonly blocks: BlocksService,
+    private readonly assets: AssetsService,
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
   ) {}
 
@@ -257,8 +259,20 @@ export class PostsService {
       throw new ForbiddenException('ลบได้เฉพาะโพสต์ของตัวเอง');
     }
 
+    const assetIds = await this.prisma.postMedia
+      .findMany({ where: { postId: id }, select: { assetId: true } })
+      .then((rows) => rows.map((row) => row.assetId));
+
+    let released: string[] = [];
+
     await this.prisma.$transaction(async (tx) => {
       await tx.post.delete({ where: { id } });
+
+      // รูป/วิดีโอในโพสต์ (post_media หายตาม CASCADE) — คืนโควตาและรอลบจากที่เก็บ
+      released = await this.assets.releaseInTx(tx, assetIds);
+
+      // รีแอ็กชันอ้างโพสต์แบบไม่มี foreign key จึงไม่หายตามเอง
+      await tx.reaction.deleteMany({ where: { targetKind: 'POST', targetId: id } });
 
       await tx.auditLog.create({
         data: {
@@ -274,6 +288,8 @@ export class PostsService {
         },
       });
     });
+
+    await this.assets.purgeAfterDelete(released);
   }
 
   async listComments(

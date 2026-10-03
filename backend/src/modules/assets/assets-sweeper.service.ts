@@ -12,7 +12,8 @@ const SWEEP_INTERVAL_MS = 30 * 60 * 1000;
 /// รอสักครู่หลังบูตก่อนกวาดรอบแรก เพื่อไม่ให้แข่งกับ traffic ตอน deploy ใหม่
 const FIRST_SWEEP_DELAY_MS = 60 * 1000;
 
-/// ตัวเก็บกวาดรายการอัปโหลดที่ค้างสถานะ PENDING
+/// ตัวเก็บกวาดรายการอัปโหลดที่ค้างสถานะ PENDING ไฟล์ของเนื้อหาที่ถูกลบ (DELETED)
+/// และรีแอ็กชันที่เป้าหมายหายไปแล้ว
 ///
 /// ทำไมต้องมี: ท่ออัปโหลดสามจังหวะสร้างแถว PENDING ตอนขอ signed URL
 /// ถ้าผู้ใช้ปิดแท็บกลางทาง จังหวะที่สาม (commit) จะไม่เกิด แล้วแถวนั้น
@@ -63,17 +64,29 @@ export class AssetsSweeper implements OnModuleInit, OnModuleDestroy {
   ///
   /// ไม่ปล่อยให้ error หลุดออกไป เพราะ error ใน setInterval ที่ไม่มีใครจับ
   /// จะทำให้โพรเซสตายทั้งตัว — พาไฟล์แชทและห้องเสียงทั้งระบบล่มไปด้วย
-  async sweep(): Promise<{ removed: number }> {
+  ///
+  /// สามงานแยก try/catch กัน — งานหนึ่งล้มต้องไม่ทำให้อีกสองงานไม่ได้ทำ
+  async sweep(): Promise<{ removed: number; purged: number; orphanReactions: number }> {
+    return {
+      removed: await this.safely('รายการอัปโหลดที่ค้าง', () => this.assets.sweepStalePending()),
+      purged: await this.safely('ไฟล์ของเนื้อหาที่ถูกลบ', () => this.assets.purgeDeleted()),
+      orphanReactions: await this.safely('รีแอ็กชันที่เป้าหมายหายไป', () =>
+        this.assets.sweepOrphanReactions(),
+      ),
+    };
+  }
+
+  private async safely(label: string, job: () => Promise<number>): Promise<number> {
     try {
-      return { removed: await this.assets.sweepStalePending() };
+      return await job();
     } catch (error) {
       this.logger.error(
-        `เก็บกวาดไม่สำเร็จ: ${
+        `เก็บกวาด${label}ไม่สำเร็จ: ${
           error instanceof Error ? error.message : 'ไม่ทราบสาเหตุ'
         }`,
       );
 
-      return { removed: 0 };
+      return 0;
     }
   }
 }

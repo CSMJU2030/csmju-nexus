@@ -10,6 +10,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { RolesGuard } from '../../common/auth/roles.guard.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { Paginated } from '../../common/http/envelope.js';
 import { PaginationQuery } from '../../common/http/pagination.dto.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
@@ -346,6 +347,165 @@ export class AssetsService {
         });
       }
     });
+  }
+
+  /// คืนไฟล์ของเนื้อหาที่เพิ่งถูกลบ (โพสต์ คลิป สตอรี่) — เรียก **ใน transaction
+  /// เดียวกับการลบ** หลังลบแถวเนื้อหาแล้ว
+  ///
+  /// เดิมลบโพสต์/คลิป/สตอรี่แล้วไฟล์ค้าง READY ตลอดไป: ไบต์ยังอยู่ในที่เก็บ
+  /// และยังกินโควตาของเจ้าของ (ตัวกวาดเก็บแค่ PENDING) ลบเนื้อหาไปเท่าไหร่
+  /// พื้นที่ก็ไม่คืน จนอัปโหลดอะไรไม่ได้อีก
+  ///
+  /// ทำสองอย่างที่ต้องสำเร็จพร้อมการลบ: หักโควตาคืนเจ้าของ และตั้งสถานะ DELETED
+  /// (ดาวน์โหลดไม่ได้อีก) ส่วนการลบไบต์จริงทำทีหลังใน purgeDeleted — การเรียก
+  /// ที่เก็บไฟล์ภายนอกไม่ควรอยู่ใน transaction และถ้าล้มก็ยังลองซ้ำได้
+  ///
+  /// ปล่อยเฉพาะไฟล์ที่ไม่มีอะไรใช้อยู่แล้วจริง ๆ — ถ้ายังเป็นคลิป สตอรี่ รูปในโพสต์
+  /// รูปปก หรือไฟล์แนบของข้อความอยู่ ข้ามไป (เช่นรูปเดียวกันถูกตั้งเป็นรูปปกด้วย)
+  async releaseInTx(tx: Prisma.TransactionClient, assetIds: string[]): Promise<string[]> {
+    if (assetIds.length === 0) return [];
+
+    const orphaned = await tx.asset.findMany({
+      where: {
+        id: { in: assetIds },
+        status: { not: 'DELETED' },
+        messageId: null,
+        reel: { is: null },
+        story: { is: null },
+        gallery: { is: null },
+        member: { is: null },
+      },
+      select: {
+        id: true,
+        ownerCoreUserId: true,
+        status: true,
+        sizeBytes: true,
+        sourceAssetId: true,
+      },
+    });
+
+    if (orphaned.length === 0) return [];
+
+    // หักคืนเฉพาะไฟล์ที่เคยถูกนับ: READY และอัปโหลดเอง (สำเนาจากการส่งต่อไม่เคยนับ)
+    const refunds = new Map<string, bigint>();
+
+    for (const asset of orphaned) {
+      if (asset.status === 'READY' && asset.sizeBytes > 0n && !asset.sourceAssetId) {
+        refunds.set(
+          asset.ownerCoreUserId,
+          (refunds.get(asset.ownerCoreUserId) ?? 0n) + asset.sizeBytes,
+        );
+      }
+    }
+
+    for (const [coreUserId, bytes] of refunds) {
+      // GREATEST กันติดลบ — ตัวเลขที่ใช้ไปอาจเพี้ยนมาก่อนแล้ว (เช่นผู้ดูแลแก้โควตามือ)
+      // ถ้าหักตรง ๆ แล้วติดลบ ผู้ใช้จะได้พื้นที่เกินโควตาจริงไปเงียบ ๆ
+      await tx.$executeRaw`
+        UPDATE subsystem_members
+        SET storage_used_bytes = GREATEST(storage_used_bytes - ${bytes}, 0)
+        WHERE core_user_id = ${coreUserId}
+      `;
+    }
+
+    const ids = orphaned.map((asset) => asset.id);
+
+    await tx.asset.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'DELETED' },
+    });
+
+    return ids;
+  }
+
+  /// ลบไบต์จริงของไฟล์ที่เป็น DELETED แล้วลบแถวทิ้ง
+  ///
+  /// **ไฟล์ในที่เก็บถูกลบก็ต่อเมื่อไม่มีแถวอื่นที่ยังใช้งานชี้ objectPath เดียวกัน**
+  /// — การส่งต่อข้อความสร้างแถวใหม่ที่ชี้ไฟล์เดิม (sourceAssetId) ถ้าลบตามแถวเดียว
+  /// ไฟล์แนบที่ส่งต่อไปห้องอื่นแล้วจะเสียทันที แถว DELETED ในกรณีนั้นลบได้เลย
+  /// แต่ไบต์ต้องอยู่ต่อ
+  ///
+  /// เรียกทันทีหลังลบเนื้อหา (ระบุ ids) และจากตัวเก็บกวาดทุกรอบ (ไม่ระบุ = ทั้งหมด
+  /// ที่ค้าง) — ไฟล์ไหนลบจากที่เก็บไม่สำเร็จ แถวจะค้าง DELETED ไว้ให้รอบหน้าลองใหม่
+  async purgeDeleted(assetIds?: string[]): Promise<number> {
+    const rows = await this.prisma.asset.findMany({
+      where: {
+        status: 'DELETED',
+        ...(assetIds ? { id: { in: assetIds } } : {}),
+      },
+      select: { id: true, bucket: true, objectPath: true },
+      take: 200,
+    });
+
+    const groups = new Map<string, { bucket: string; objectPath: string; ids: string[] }>();
+
+    for (const row of rows) {
+      const key = `${row.bucket}\u0000${row.objectPath}`;
+      const group = groups.get(key) ?? { bucket: row.bucket, objectPath: row.objectPath, ids: [] };
+
+      group.ids.push(row.id);
+      groups.set(key, group);
+    }
+
+    let purged = 0;
+
+    for (const group of groups.values()) {
+      const stillUsed = await this.prisma.asset.count({
+        where: { objectPath: group.objectPath, status: { not: 'DELETED' } },
+      });
+
+      if (stillUsed === 0) {
+        try {
+          await this.storage.remove(group.bucket, group.objectPath);
+        } catch (error) {
+          this.logger.warn(
+            `ลบไฟล์ที่ถูกลบแล้ว ${group.bucket}/${group.objectPath} ไม่ได้ — รอบหน้าลองใหม่`,
+            error instanceof Error ? error.stack : undefined,
+          );
+          continue;
+        }
+      }
+
+      const { count } = await this.prisma.asset.deleteMany({
+        where: { id: { in: group.ids }, status: 'DELETED' },
+      });
+
+      purged += count;
+    }
+
+    if (purged > 0 && !assetIds) {
+      this.logger.log(`ลบไฟล์ของเนื้อหาที่ถูกลบแล้ว ${purged} รายการ`);
+    }
+
+    return purged;
+  }
+
+  /// เรียก purgeDeleted หลัง transaction ของการลบเนื้อหาสำเร็จ — ไม่ให้ error
+  /// ของที่เก็บไฟล์ทำให้การลบที่สำเร็จไปแล้วตอบ 500 (ตัวกวาดลองซ้ำให้เอง)
+  async purgeAfterDelete(assetIds: string[]): Promise<void> {
+    if (assetIds.length === 0) return;
+
+    try {
+      await this.purgeDeleted(assetIds);
+    } catch (error) {
+      this.logger.warn(
+        `ลบไฟล์ของเนื้อหาที่เพิ่งลบไม่สำเร็จ — ตัวเก็บกวาดจะลองใหม่: ${
+          error instanceof Error ? error.message : 'ไม่ทราบสาเหตุ'
+        }`,
+      );
+    }
+  }
+
+  /// รีแอ็กชันที่เป้าหมายไม่มีอยู่แล้ว — โพสต์/คลิปที่ถูกลบก่อนมีการล้างตอนลบ
+  /// และข้อความที่หายไปพร้อมห้อง (ลบห้อง = ลบข้อความแบบ CASCADE แต่ reactions
+  /// อ้างเป้าหมายแบบ polymorphic จึงไม่มี foreign key ให้ลบตาม)
+  async sweepOrphanReactions(): Promise<number> {
+    return this.prisma.$executeRaw`
+      DELETE FROM reactions r
+      WHERE (r.target_kind = 'POST' AND NOT EXISTS (SELECT 1 FROM posts p WHERE p.id = r.target_id))
+         OR (r.target_kind = 'REEL' AND NOT EXISTS (SELECT 1 FROM reels x WHERE x.id = r.target_id))
+         OR (r.target_kind = 'MESSAGE' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.id = r.target_id))
+    `;
   }
 
   /// เก็บกวาดแถวที่ค้าง PENDING — ให้ cron หรือ scheduler เรียก

@@ -94,7 +94,7 @@ export class AssetResponseDto {
   })
   sizeBytes!: string;
 
-  @ApiProperty({ enum: ['PENDING', 'READY', 'BLOCKED'] })
+  @ApiProperty({ enum: ['PENDING', 'READY', 'BLOCKED', 'DELETED'] })
   status!: string;
 
   @ApiProperty() createdAt!: string;

@@ -9,6 +9,7 @@ import { Paginated } from '../../common/http/envelope.js';
 import { PaginationQuery } from '../../common/http/pagination.dto.js';
 import type { CoreHubUser } from '../../common/auth/core-user.js';
 import { ApiProperty } from '@nestjs/swagger';
+import { AssetsService } from '../assets/assets.service.js';
 import { BlocksService } from '../blocks/blocks.service.js';
 import { FollowsService } from '../follows/follows.service.js';
 import { PrivacyService } from '../settings/privacy.service.js';
@@ -63,6 +64,7 @@ export class ReelsService {
     private readonly follows: FollowsService,
     private readonly privacy: PrivacyService,
     private readonly blocks: BlocksService,
+    private readonly assets: AssetsService,
   ) {}
 
   async list(
@@ -311,9 +313,18 @@ export class ReelsService {
       throw new ForbiddenException('ลบได้เฉพาะคลิปของตัวเอง');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.reel.delete({ where: { id } }),
-      this.prisma.auditLog.create({
+    let released: string[] = [];
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.reel.delete({ where: { id } });
+
+      // ตัววิดีโอ — เดิมค้าง READY ตลอดไป กินโควตาเจ้าของทั้งที่คลิปหายไปแล้ว
+      released = await this.assets.releaseInTx(tx, [reel.assetId]);
+
+      // รีแอ็กชันอ้างคลิปแบบไม่มี foreign key จึงไม่หายตามเอง
+      await tx.reaction.deleteMany({ where: { targetKind: 'REEL', targetId: id } });
+
+      await tx.auditLog.create({
         data: {
           actorCoreUserId: user.coreUserId,
           actorCoreRole: user.coreRole,
@@ -322,8 +333,10 @@ export class ReelsService {
           targetId: id,
           metadata: { owner_core_user_id: reel.authorCoreUserId, by_admin: !isOwner },
         },
-      }),
-    ]);
+      });
+    });
+
+    await this.assets.purgeAfterDelete(released);
   }
 
   /// กดไลก์ซ้ำไม่เพิ่มยอด เพราะ primary key เป็น (reelId, coreUserId)
