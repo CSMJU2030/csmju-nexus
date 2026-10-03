@@ -126,6 +126,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .get<Me>('/me')
       .then((me) => {
         if (alive) setState({ status: 'ready', me });
+
+        // ลงทะเบียนตัวเองเป็นสมาชิกของระบบนี้ครั้งแรกที่เปิดแอป — หลังบ้านสร้างชื่อที่แสดง
+        // (จากอีเมล) และปรับสิทธิ์ Layer 2 ให้ตรงกับ core role ที่ GET /subsystem-members/me
+        // พบตอนทดสอบกับ Core Hub จริง: ไม่มีอะไรเรียกเส้นนี้ระหว่างใช้งานปกติ ผู้ใช้ใหม่
+        // จึงไม่มีชื่อในแคช (ทั้งระบบโชว์ UUID) และบุคลากรค้างสิทธิ์ GUEST
+        // ไม่ทำใน /me เพราะ me.controller อยู่ในชั้น auth ที่มาตรฐานห้ามแก้ (ai/AGENTS.md ข้อ 2)
+        // ไม่รอผล — ถ้าล้มก็แค่ชื่อยังไม่ขึ้น ไม่ควรทำให้แอปเปิดไม่ได้
+        void api.get('/subsystem-members/me').catch(() => undefined);
       })
       .catch((error: unknown) => {
         if (!alive) return;

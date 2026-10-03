@@ -805,6 +805,22 @@ describe('รอบที่ 3 — เมนูข้อความ ตอบ�
     await waitFor(() => expect(screen.queryByText('ส่งการบ้านแล้วครับ')).not.toBeInTheDocument());
   });
 
+  /// พบตอนทดสอบกับ Core Hub จริง: ยกเลิกข้อความล่าสุดแล้ว แถวในกล่องข้อความยังโชว์
+  /// "คุณ: <ข้อความที่ยกเลิก>" จนกว่าจะรีเฟรชหน้า
+  it('ยกเลิกการส่งแล้ว ขอรายการห้องใหม่ — ตัวอย่างในกล่องข้อความไม่ค้างข้อความที่ยกเลิกไปแล้ว', async () => {
+    api.list.mockResolvedValue(page([mine()]));
+    api.del.mockResolvedValue(undefined);
+
+    const { client } = setup();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const menu = await openMenu('ส่งการบ้านแล้วครับ');
+
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'ยกเลิกการส่ง' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'ยกเลิกการส่ง' }));
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: CHANNELS_KEY }));
+  });
+
   it('ปักหมุดแล้วขึ้นแถบใต้หัวบทสนทนา และป้าย "ปักหมุดแล้ว" บนข้อความ', async () => {
     const target = msg({ content: 'สอบวันศุกร์' });
 

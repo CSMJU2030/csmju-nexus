@@ -111,6 +111,39 @@ describe('SessionProvider', () => {
     expect(assigned).toBeNull();
   });
 
+  it('**ลงทะเบียนเป็นสมาชิกทุกครั้งที่เปิดแอป** (GET /subsystem-members/me) — ผู้ใช้ใหม่จะได้ชื่อและสิทธิ์ที่ถูก', async () => {
+    // พบตอนทดสอบกับ Core Hub จริง: ไม่มีอะไรเรียกเส้นนี้ ผู้ใช้ใหม่ทั้งระบบโชว์เป็น UUID
+    apiGet.mockResolvedValue(ME);
+
+    const { SessionProvider } = await load();
+
+    render(
+      <SessionProvider>
+        <p>เนื้อหาของแอป</p>
+      </SessionProvider>,
+    );
+
+    await screen.findByText('เนื้อหาของแอป');
+    await waitFor(() => expect(apiGet).toHaveBeenCalledWith('/subsystem-members/me'));
+  });
+
+  it('ลงทะเบียนสมาชิกล้ม → แอปยังเปิดได้ตามปกติ', async () => {
+    apiGet.mockImplementation(async (path: string) => {
+      if (path === '/subsystem-members/me') throw new Error('db down');
+      return ME;
+    });
+
+    const { SessionProvider } = await load();
+
+    render(
+      <SessionProvider>
+        <p>เนื้อหาของแอป</p>
+      </SessionProvider>,
+    );
+
+    expect(await screen.findByText('เนื้อหาของแอป')).toBeInTheDocument();
+  });
+
   it('ยังไม่ล็อกอิน (401 ตอนเปิด) → พาทั้งหน้าไป /auth/login?next=<path+query>', async () => {
     apiGet.mockRejectedValue(await unauthorized());
 

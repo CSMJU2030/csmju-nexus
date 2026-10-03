@@ -21,6 +21,20 @@ import type { Meeting } from '@/lib/csmju/types';
 
 const SUGGESTION_LIMIT = 5;
 
+/// รูปคนที่ออนไลน์ — aria-label ใช้ชื่อที่แสดง ไม่ใช่รหัส
+///
+/// รหัสจาก Core Hub ตัวจริงเป็น UUID เดิมโปรแกรมอ่านหน้าจอจึงอ่าน
+/// "โปรไฟล์ของ e2b39ea5-d4ff-…" ทั้งที่ชื่อมีอยู่ในแคชแล้ว
+function OnlineAvatar({ coreUserId }: { coreUserId: string }) {
+  const profile = useProfile(coreUserId);
+
+  return (
+    <Link href={`/profile/${encodeURIComponent(coreUserId)}`} aria-label={`โปรไฟล์ของ ${profile.displayName}`}>
+      <Avatar coreUserId={coreUserId} size={36} />
+    </Link>
+  );
+}
+
 
 function Person({
   coreUserId,
@@ -204,9 +218,7 @@ export function FeedSidebar() {
           <ul className="mt-3 flex flex-wrap gap-2">
             {online.slice(0, 12).map((id) => (
               <li key={id}>
-                <Link href={`/profile/${encodeURIComponent(id)}`} aria-label={`โปรไฟล์ของ ${id}`}>
-                  <Avatar coreUserId={id} size={36} />
-                </Link>
+                <OnlineAvatar coreUserId={id} />
               </li>
             ))}
           </ul>

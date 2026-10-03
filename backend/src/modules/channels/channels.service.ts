@@ -175,7 +175,7 @@ export class ChannelsService {
     // conformance L2-12 จับได้ตอนรันกับ Core Hub จริงที่มีบัญชี guest
     if (dto.kind === 'COURSE' && !isStaffLike(user.coreRole)) {
       throw new ForbiddenException(
-        'ห้องประจำวิชาสร้างได้เฉพาะอาจารย์และบุคลากร — นักศึกษาสร้างห้องกลุ่มได้',
+        'ห้องประจำวิชาสร้างได้เฉพาะอาจารย์และบุคลากร — สร้างห้องกลุ่มแทนได้',
       );
     }
 

@@ -310,6 +310,15 @@ function ThreadView({
     [queryClient],
   );
 
+  /// ยกเลิกการส่งแล้ว → ขอรายการห้องใหม่
+  ///
+  /// พบตอนทดสอบกับ Core Hub จริง: ยกเลิกข้อความล่าสุดแล้ว แถวในกล่องข้อความ
+  /// ยังโชว์ "คุณ: <ข้อความที่ยกเลิกไปแล้ว>" ทั้งฝั่งผู้ส่งและผู้รับ จนกว่าจะรีเฟรช
+  /// ฝั่งเราเดาตัวอย่างใหม่เองไม่ได้ (ข้อความก่อนหน้าอาจยังไม่ได้โหลด) จึงถามหลังบ้าน
+  const dropFromList = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: CHANNELS_KEY });
+  }, [queryClient]);
+
   // ── เห็นแล้ว ─────────────────────────────────────────────
   //
   // หลังบ้านไม่มี event "อีกฝ่ายอ่านแล้ว" ทาง socket — ถามห้องนี้ซ้ำทุก 8 วินาที
@@ -503,6 +512,8 @@ function ThreadView({
                 prev.filter((row) => row.id !== payload.messageId),
               );
               setPinned((prev) => prev.filter((row) => row.id !== payload.messageId));
+              // ข้อความที่ถูกยกเลิกอาจเป็นตัวอย่างในกล่องข้อความอยู่ — ดูหัวข้อ dropFromList
+              dropFromList();
             },
           ),
         );
@@ -666,7 +677,7 @@ function ThreadView({
         off();
       }
     };
-  }, [channel.id, me.id, bumpList, applyPinned, queryClient]);
+  }, [channel.id, me.id, bumpList, dropFromList, applyPinned, queryClient]);
 
   // ── อ่านแล้ว ─────────────────────────────────────────────
   //
@@ -989,6 +1000,7 @@ function ThreadView({
       setMessages((prev) => prev.filter((row) => row.id !== message.id));
       setPinned((prev) => prev.filter((row) => row.id !== message.id));
       setUnsending(null);
+      dropFromList();
     } catch (caught) {
       showToast(caught instanceof Error ? caught.message : 'ยกเลิกการส่งไม่สำเร็จ', 'error');
     } finally {
