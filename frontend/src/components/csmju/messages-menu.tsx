@@ -102,12 +102,23 @@ export function PopMenu({
       onClose();
     };
 
+    // Esc ต้องปิดได้ทันทีที่เมนูโผล่ — โฟกัสย้ายเข้าเมนูช้าไปหนึ่งเฟรม (requestAnimationFrame
+    // ด้านบน) ถ้าฟังแค่ onKeyDown ของตัวเมนู การกด Esc ในเฟรมนั้นจะหายไปเฉย ๆ
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+
+      event.preventDefault();
+      onClose();
+    };
+
     document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('keydown', escape);
     window.addEventListener('scroll', place, true);
     window.addEventListener('resize', place);
 
     return () => {
       document.removeEventListener('pointerdown', dismiss);
+      document.removeEventListener('keydown', escape);
       window.removeEventListener('scroll', place, true);
       window.removeEventListener('resize', place);
       // คืนโฟกัสให้ปุ่มที่เปิดเมนู
