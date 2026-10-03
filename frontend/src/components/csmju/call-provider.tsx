@@ -25,6 +25,7 @@ import {
   DisplayName,
   RemoteAudio,
 } from '@/components/csmju/call-ui';
+import { useProfile } from '@/components/csmju/user-name';
 import { api, ApiError } from '@/lib/csmju/api';
 import { useMe } from '@/lib/csmju/session';
 import {
@@ -1759,6 +1760,7 @@ function IncomingCallSheet({
   // กว่าจะถึงสายก็วางไปแล้ว ต้องย้ายโฟกัสมาให้ และ Escape = ปฏิเสธ
   const sheetRef = useModalFocus<HTMLDivElement>(true, onDecline);
   const from = ring.fromCoreUserId;
+  const fromName = useProfile(from).displayName;
   const group =
     ring.channel?.kind === 'GROUP_DM' ? (ring.channel.memberCoreUserIds?.length ?? 0) : 0;
 
@@ -1768,7 +1770,7 @@ function IncomingCallSheet({
       tabIndex={-1}
       role="dialog"
       aria-modal="true"
-      aria-label={`สายเรียกเข้าจาก ${from}`}
+      aria-label={`สายเรียกเข้าจาก ${fromName}`}
       className="fixed inset-x-0 bottom-4 z-120 mx-auto w-[min(24rem,calc(100vw-2rem))] csmju-surface p-4 shadow-xl outline-none animate-in fade-in-0 zoom-in-95"
     >
       <div className="flex items-center gap-3">

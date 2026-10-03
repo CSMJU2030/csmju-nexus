@@ -7,7 +7,7 @@ import { Check, Loader2, Send } from 'lucide-react';
 import { useProfileData } from '@/components/csmju/profile-data';
 import { RoomPopover, type PopoverAnchor } from '@/components/csmju/room-popover';
 import { UserAvatar, VerifiedBadge, useOnline } from '@/components/csmju/user-badge';
-import { useProfile } from '@/components/csmju/user-name';
+import { shownName, useProfile } from '@/components/csmju/user-name';
 import { api, ApiError } from '@/lib/csmju/api';
 import { useMe } from '@/lib/csmju/session';
 import type { Channel, Message } from '@/lib/csmju/types';
@@ -60,7 +60,7 @@ function UserCard({ coreUserId, nickname }: { coreUserId: string; nickname: stri
   const online = useOnline(coreUserId);
   const { data } = useProfileData(coreUserId, isMe);
   const profile = data?.profile;
-  const name = profile?.displayName ?? summary.displayName;
+  const name = shownName(coreUserId, profile?.displayName ?? summary.displayName);
 
   /// ห้องที่อยู่ร่วมกัน — แสดงเมื่อหลังบ้านส่งตัวเลขนี้มาเท่านั้น ไม่เดาเอง
   const mutualRooms = (profile as { mutualChannelCount?: unknown } | undefined)
@@ -91,10 +91,8 @@ function UserCard({ coreUserId, nickname }: { coreUserId: string; nickname: stri
             <span className="truncate">{nickname ?? name}</span>
             <VerifiedBadge badge={profile?.badge ?? summary.badge} className="size-4" />
           </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {nickname ? `${name} · ` : ''}
-            {coreUserId}
-          </p>
+          {/* มีชื่อเล่น = บอกชื่อจริงในระบบด้วย (แบบ Discord) · ไม่มีก็ไม่ต้องซ้ำชื่อเดิม */}
+          {nickname && <p className="truncate text-xs text-muted-foreground">{name}</p>}
 
           <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
             <span

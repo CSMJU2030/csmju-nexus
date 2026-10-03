@@ -259,13 +259,45 @@ vi.mock('@/lib/csmju/api', () => {
   return {
     ApiError,
     api: {
-      // ชื่อที่แสดง (useProfile) กับข้อมูลห้องของสายเข้า — ตอบว่างไว้
-      // หน้าจอจะแสดง coreUserId แทนชื่อ ซึ่งเทสต์ใช้ระบุตัวคนได้ตรง ๆ
-      get: async () => [],
+      // ชื่อที่แสดง (useProfile) = รหัสทดสอบขึ้นต้นตัวใหญ่ ('bbb-peer' → 'Bbb-peer')
+      // ให้เทสต์ระบุตัวคนได้ตรง ๆ — ห้ามตอบชื่อเดียวกับรหัส เพราะนั่นคือรูปของ
+      // "ยังไม่มีชื่อในแคช" ซึ่งหน้าจอแสดงเป็น "ผู้ใช้" แทน · ข้อมูลห้องตอบว่างไว้
+      get: async (path: string) =>
+        path.startsWith('/profiles?coreUserIds=')
+          ? decodeURIComponent(path.slice('/profiles?coreUserIds='.length))
+              .split(',')
+              .map((id) => ({
+                coreUserId: id,
+                displayName: id.charAt(0).toUpperCase() + id.slice(1),
+                avatarUrl: null,
+                syncedAt: null,
+                badge: null,
+              }))
+          : [],
       post: (...args: unknown[]) => apiPost(...args),
       patch: (...args: unknown[]) => apiPatch(...args),
       del: (...args: unknown[]) => apiDel(...args),
     },
+  };
+});
+
+// ชื่อที่แสดงตอบทันทีแบบ synchronous — ไฟล์นี้ทดสอบระบบโทร ไม่ใช่การโหลดชื่อแบบรวบชุด
+// (ทดสอบไว้ใน user-name.test.tsx แล้ว) · ตัวรวบชุดใช้ setTimeout ซึ่งบน runner Linux
+// ของ CI ทำให้ชื่อยังไม่ขึ้นทันเวลาที่เทสต์รอ (ตกเฉพาะบน CI ไม่ตกบน Windows)
+vi.mock('@/components/csmju/user-name', async () => {
+  const actual = await vi.importActual<typeof import('./user-name')>('./user-name');
+
+  return {
+    ...actual,
+    useProfile: (coreUserId: string) => ({
+      coreUserId,
+      displayName: coreUserId
+        ? coreUserId.charAt(0).toUpperCase() + coreUserId.slice(1)
+        : actual.UNKNOWN_NAME,
+      avatarUrl: null,
+      syncedAt: null,
+      badge: null,
+    }),
   };
 });
 
@@ -417,7 +449,7 @@ async function dial() {
 
 async function callOut() {
   await dial();
-  await screen.findByText(/กำลังโทรหา bbb-peer/);
+  await screen.findByText(/กำลังโทรหา Bbb-peer/);
 }
 
 describe('สายเรียกเข้า', () => {
@@ -427,7 +459,9 @@ describe('สายเรียกเข้า', () => {
     await incoming();
 
     expect(screen.getByText('สายเรียกเข้า…')).toBeInTheDocument();
-    expect(screen.getByText('ccc-friend')).toBeInTheDocument();
+    // ชื่อมาจากแคชโปรไฟล์ (โหลดแบบรวบชุด) ไม่ใช่ coreUserId ที่มากับสัญญาณ
+    expect(await screen.findByText('Ccc-friend')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'สายเรียกเข้าจาก Ccc-friend' })).toBeInTheDocument();
   });
 
   it('กดรับแล้วเข้าห้องเสียงและตอบว่ารับ', async () => {
@@ -509,7 +543,7 @@ describe('โทรออก', () => {
 
     await dial();
 
-    expect(await screen.findByText(/กำลังโทรหา bbb-peer/)).toBeInTheDocument();
+    expect(await screen.findByText(/กำลังโทรหา Bbb-peer/)).toBeInTheDocument();
   });
 
   it('อีกฝ่ายปฏิเสธ แล้วสายถูกเก็บให้สะอาด', async () => {
@@ -529,7 +563,7 @@ describe('โทรออก', () => {
       expect(screen.queryByText(/กำลังโทรหา/)).not.toBeInTheDocument(),
     );
 
-    expect(await screen.findByText(/bbb-peer ปฏิเสธสาย/)).toBeInTheDocument();
+    expect(await screen.findByText(/Bbb-peer ปฏิเสธสาย/)).toBeInTheDocument();
 
     // ไมค์ต้องถูกปล่อย ไม่งั้นไฟไมค์ค้างติดทั้งที่ไม่มีสายแล้ว
     expect(micStream.track.stop).toHaveBeenCalled();
@@ -1055,7 +1089,7 @@ describe('WebRTC', () => {
       });
     });
 
-    expect(screen.getByText(/กำลังโทรหา bbb-peer/)).toBeInTheDocument();
+    expect(screen.getByText(/กำลังโทรหา Bbb-peer/)).toBeInTheDocument();
   });
 
   it('เริ่มแชร์หน้าจอแล้วต้องเปิดรอบเจรจาใหม่ ไม่ใช่แค่เพิ่มแทร็ก', async () => {
@@ -1289,7 +1323,7 @@ describe('ห้องรอก่อนโทร', () => {
     expect(screen.queryByText('ปิดกล้องอยู่')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'เริ่มการโทร' }));
-    await screen.findByText(/กำลังโทรหา bbb-peer/);
+    await screen.findByText(/กำลังโทรหา Bbb-peer/);
 
     expect(FakePeerConnection.latest().addedTracks).toEqual([
       micStream.track,
@@ -1303,7 +1337,7 @@ describe('ห้องรอก่อนโทร', () => {
     await userEvent.click(screen.getByRole('button', { name: 'โทร' }));
     await userEvent.click(await screen.findByRole('button', { name: 'ปิดไมค์' }));
     await userEvent.click(screen.getByRole('button', { name: 'เริ่มการโทร' }));
-    await screen.findByText(/กำลังโทรหา bbb-peer/);
+    await screen.findByText(/กำลังโทรหา Bbb-peer/);
 
     expect(micStream.track.enabled).toBe(false);
     expect(screen.getByRole('button', { name: 'เปิดไมค์' })).toBeInTheDocument();
@@ -1626,11 +1660,11 @@ describe('สายกลุ่ม (mesh)', () => {
     // ห้องรอบอกชื่อสมาชิกทุกคน (ตัดตัวเองออก)
     const lobby = await screen.findByRole('dialog', { name: 'เตรียมโทร' });
 
-    expect(lobby).toHaveTextContent('bbb-peer, ccc-friend');
-    expect(lobby).not.toHaveTextContent('aaa-caller');
+    await waitFor(() => expect(lobby).toHaveTextContent('Bbb-peer, Ccc-friend'));
+    expect(lobby).not.toHaveTextContent('Aaa-caller');
 
     await userEvent.click(screen.getByRole('button', { name: 'เริ่มการโทร' }));
-    await screen.findByText(/กำลังโทรหา bbb-peer/);
+    await screen.findByText(/กำลังโทรหา Bbb-peer/);
   }
 
   function answer(from: string, accepted = true) {
@@ -1652,7 +1686,7 @@ describe('สายกลุ่ม (mesh)', () => {
     answer('bbb-peer');
 
     expect(await screen.findByText('2 คน')).toBeInTheDocument();
-    expect(screen.getByText(/bbb-peer, \+ คนอื่นๆ อีก 1 คน/)).toBeInTheDocument();
+    expect(screen.getByText(/Bbb-peer, \+ คนอื่นๆ อีก 1 คน/)).toBeInTheDocument();
 
     // คนที่ยังไม่รับยังเห็นเป็น "กำลังโทร…" ในช่องของเขา
     expect(screen.getByText('กำลังโทร…')).toBeInTheDocument();

@@ -138,6 +138,7 @@ export function RemoteAudio({
   coreUserId: string;
 }) {
   const ref = useRef<HTMLAudioElement | null>(null);
+  const name = useProfile(coreUserId).displayName;
 
   useEffect(() => {
     if (ref.current) ref.current.srcObject = stream;
@@ -160,7 +161,7 @@ export function RemoteAudio({
 
   return (
     <audio ref={ref} autoPlay playsInline className="hidden">
-      <track kind="captions" label={`เสียงของ ${coreUserId}`} />
+      <track kind="captions" label={`เสียงของ ${name}`} />
     </audio>
   );
 }

@@ -372,7 +372,6 @@ function PersonRow({
 
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold">{profile.displayName}</span>
-        <span className="block truncate text-sm text-muted-foreground">{coreUserId}</span>
       </span>
 
       <span

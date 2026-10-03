@@ -2,7 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/csmju/api';
+import { shownName } from '@/components/csmju/user-name';
 import type { MyProfile, ProfileDetail } from '@/lib/csmju/types';
+
+/// หลังบ้านคืน displayName = coreUserId (UUID) ถ้ายังไม่มีชื่อในแคช — ห้ามขึ้นจอ
+function named<T extends ProfileDetail>(profile: T): T {
+  return { ...profile, displayName: shownName(profile.coreUserId, profile.displayName) };
+}
 
 /// ข้อมูลหัวโปรไฟล์ — ใช้ร่วมกันระหว่างหน้าโปรไฟล์กับหน้าตั้งค่า
 ///
@@ -29,14 +35,14 @@ export function useProfileData(coreUserId: string, isMe: boolean) {
       // /profiles/me คืน MyProfile ที่มี bio, coverUrl และ managedByCore
       // เพิ่มมา — ของคนอื่นคืน ProfileDetail เฉย ๆ
       if (isMe) {
-        const detail = await api.get<MyProfile>('/profiles/me');
+        const detail = named(await api.get<MyProfile>('/profiles/me'));
 
         return { profile: detail, mine: detail };
       }
 
       return {
-        profile: await api.get<ProfileDetail>(
-          `/profiles/${encodeURIComponent(coreUserId)}`,
+        profile: named(
+          await api.get<ProfileDetail>(`/profiles/${encodeURIComponent(coreUserId)}`),
         ),
         mine: null,
       };
