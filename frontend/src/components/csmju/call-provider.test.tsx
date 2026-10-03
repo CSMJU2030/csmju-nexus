@@ -281,6 +281,26 @@ vi.mock('@/lib/csmju/api', () => {
   };
 });
 
+// ชื่อที่แสดงตอบทันทีแบบ synchronous — ไฟล์นี้ทดสอบระบบโทร ไม่ใช่การโหลดชื่อแบบรวบชุด
+// (ทดสอบไว้ใน user-name.test.tsx แล้ว) · ตัวรวบชุดใช้ setTimeout ซึ่งบน runner Linux
+// ของ CI ทำให้ชื่อยังไม่ขึ้นทันเวลาที่เทสต์รอ (ตกเฉพาะบน CI ไม่ตกบน Windows)
+vi.mock('@/components/csmju/user-name', async () => {
+  const actual = await vi.importActual<typeof import('./user-name')>('./user-name');
+
+  return {
+    ...actual,
+    useProfile: (coreUserId: string) => ({
+      coreUserId,
+      displayName: coreUserId
+        ? coreUserId.charAt(0).toUpperCase() + coreUserId.slice(1)
+        : actual.UNKNOWN_NAME,
+      avatarUrl: null,
+      syncedAt: null,
+      badge: null,
+    }),
+  };
+});
+
 vi.mock('@/lib/csmju/session', () => ({
   useMe: () => ({
     id: 'aaa-caller',
