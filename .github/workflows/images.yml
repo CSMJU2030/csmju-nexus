@@ -1,0 +1,24 @@
+# .github/workflows/images.yml
+# Copy this file, unmodified, into every csmju-<subsystem> repo — DevOps only,
+# like ci.yml (GH-03 · CODEOWNERS). On every push to main it builds the repo's
+# two images from backend/Dockerfile and frontend/Dockerfile and pushes them to
+# ghcr.io (docs/deployment.md 5) — once the repo is on standards 1.8.0 or later;
+# before that it only plans and skips. The tag below pins the build workflow
+# only; DevOps moves it with org-settings/add-image-workflow.sh.
+name: Images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  images:
+    uses: CSMJU2030/csmju2030-standards/.github/workflows/subsystem-images.yml@v1.8.1
+    permissions:
+      contents: read
+      packages: write
