@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import {
   Bookmark,
   CalendarDays,
+  Camera,
   Hash,
   House,
   Menu,
@@ -148,6 +149,15 @@ export function MobileTopBar() {
           <span className="truncate text-sm">ค้นหา</span>
         </Link>
       )}
+
+      {/* กล้องแบบ Instagram — ปัดขวาบนฟีดก็เปิดได้ */}
+      <Link
+        href="/feed?create=camera"
+        aria-label="เปิดกล้อง"
+        className="grid size-9 shrink-0 place-items-center rounded-lg hover:bg-accent"
+      >
+        <Camera aria-hidden className="size-6" strokeWidth={1.9} />
+      </Link>
 
       <NotificationBell />
 

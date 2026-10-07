@@ -1,14 +1,16 @@
 'use client';
 
 import { Suspense, useCallback, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+import { CameraSwipe } from '@/components/csmju/camera-swipe';
 import { CreatePostModal } from '@/components/csmju/feed-create-post';
 import { toast } from '@/components/csmju/feed-toast';
 import { PostCard } from '@/components/csmju/feed-post-card';
 import type { PostView } from '@/components/csmju/feed-post-media';
 import { FeedSidebar } from '@/components/csmju/feed-sidebar';
+import { StoryCamera } from '@/components/csmju/story-camera';
 import { StoryRow } from '@/components/csmju/story-row';
 import { Avatar } from '@/components/csmju/user-name';
 import { api, ApiError, qs } from '@/lib/csmju/api';
@@ -37,6 +39,22 @@ function FeedView() {
   const [courseTag, setCourseTag] = useState('');
   const me = useMe();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const wantsCamera = useSearchParams().get('create') === 'camera';
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [handledCamera, setHandledCamera] = useState(false);
+
+  // มาจาก "สร้าง → ถ่ายรูป" — เปิดครั้งเดียวต่อการมาด้วยลิงก์นี้ (ปรับระหว่าง render ไม่ใช่ใน effect)
+  if (wantsCamera && !handledCamera) {
+    setHandledCamera(true);
+    setCameraOpen(true);
+  }
+
+  function closeCamera() {
+    setCameraOpen(false);
+    // ล้าง ?create=camera ไม่ให้รีเฟรชแล้วกล้องเปิดเอง
+    if (wantsCamera) router.replace('/feed', { scroll: false });
+  }
 
   // แท็บและแท็กวิชาเป็นส่วนหนึ่งของคีย์ — สลับกลับมาแท็บเดิมจึงเห็นของเดิม
   // ทันทีจากแคช แล้วค่อยอัปเดตเบื้องหลัง แทนที่จะจอขาวใหม่ทุกครั้ง
@@ -134,7 +152,9 @@ function FeedView() {
   const canModerate = isStaffLike(me.coreRole);
 
   return (
-    // สามคอลัมน์แบบ Instagram: แถบซ้ายอยู่ที่ layout · ฟีดกลาง · บัญชีและคำแนะนำขวา
+    // ปัดขวาบนฟีด (มือถือ) = เปิดกล้องแบบ Instagram · ?create=camera จากเมนู "สร้าง" ก็เปิดกล้องเดียวกัน
+    <CameraSwipe onOpen={() => setCameraOpen(true)}>
+    {/* สามคอลัมน์แบบ Instagram: แถบซ้ายอยู่ที่ layout · ฟีดกลาง · บัญชีและคำแนะนำขวา */}
     <div className="mx-auto flex w-full max-w-[64rem] justify-center gap-16 px-4 lg:px-8">
       <div className="w-full max-w-[39rem] py-6">
         <StoryRow />
@@ -210,6 +230,8 @@ function FeedView() {
 
       <FeedSidebar />
     </div>
+    <StoryCamera open={cameraOpen} onClose={closeCamera} />
+    </CameraSwipe>
   );
 }
 

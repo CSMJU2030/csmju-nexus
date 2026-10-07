@@ -659,6 +659,22 @@
     color: var(--sidebar-foreground);
   }
 
+  /* ตัวอย่างสีของฟิลเตอร์กล้อง (story-camera) — วงล้อสีให้เห็นผลของฟิลเตอร์ */
+  .csmju-filter-swatch {
+    background: conic-gradient(
+      from 200deg,
+      rgb(59 128 242),
+      rgb(16 185 129),
+      rgb(245 158 11),
+      rgb(236 72 153),
+      rgb(59 128 242)
+    );
+  }
+
+  .csmju-no-scrollbar {
+    scrollbar-width: none;
+  }
+
   /* โลโก้สาขาในวงกลมขาวแบบหัวแถบของ Core Hub */
   .csmju-logo-badge {
     display: grid;

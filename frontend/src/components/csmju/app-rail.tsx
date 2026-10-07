@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   Activity,
   Bookmark,
+  Camera,
   CalendarDays,
   ChevronLeft,
   Clapperboard,
@@ -66,6 +67,7 @@ const TALK: RailLink[] = [
 /// ปุ่ม + เปิดเมนูว่าจะสร้างอะไร — ทุกรายการเปิดกล่องสร้างให้ทันทีด้วย ?create=
 export const CREATE_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/feed?create=post', label: 'โพสต์', icon: SquarePen },
+  { href: '/feed?create=camera', label: 'ถ่ายรูป', icon: Camera },
   { href: '/reels?create=1', label: 'คลิปสั้น', icon: Clapperboard },
   { href: '/chat?create=1', label: 'ห้อง', icon: Users },
 ];
