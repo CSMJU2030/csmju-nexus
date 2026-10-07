@@ -78,7 +78,14 @@ export function CameraSwipe({ onOpen, children }: { onOpen: () => void; children
   }
 
   return (
-    <div ref={root} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={onTouchEnd}>
+    <div
+      ref={root}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+      className="overscroll-x-none"
+    >
       {children}
 
       {drag > 0 && (
