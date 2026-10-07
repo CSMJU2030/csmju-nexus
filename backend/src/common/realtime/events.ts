@@ -198,7 +198,33 @@ export interface ServerEvents {
     sessionId: string;
     presenterCoreUserId: string | null;
   }) => void;
+
+  /// ---- ซิงก์ทั้งเว็บ ----
+  ///
+  /// "ข้อมูลหัวข้อนี้เพิ่งเปลี่ยน" — ไม่มีเนื้อหาใด ๆ (ไม่รั่วข้อมูลที่ผู้รับไม่มีสิทธิ์เห็น)
+  /// หน้าเว็บดึงใหม่ผ่าน REST ซึ่งตรวจสิทธิ์ตามปกติ · แทนการถามซ้ำทุก 30–60 วินาที
+  'sync:changed': (payload: { topic: SyncTopic }) => void;
 }
+
+/// หัวข้อของ `sync:changed` — หน้าเว็บแปลงเป็นคีย์แคชที่ต้องดึงใหม่ (frontend/src/lib/csmju/realtime-sync.ts)
+export type SyncTopic =
+  | 'posts'
+  | 'reels'
+  | 'stories'
+  | 'highlights'
+  | 'follows'
+  | 'notes'
+  | 'profiles'
+  | 'reactions'
+  | 'meetings'
+  | 'inbox'
+  | 'bookmarks'
+  | 'notifications'
+  | 'blocks'
+  | 'close-friends';
+
+/// ห้องที่ socket ที่ยืนยันตัวตนแล้วทุกตัวเข้าตอนต่อ — ใช้ส่ง `sync:changed` ของหัวข้อสาธารณะ
+export const SYNC_ROOM = 'sync:all';
 
 export interface VoiceOccupantsPayload {
   channelId: string;

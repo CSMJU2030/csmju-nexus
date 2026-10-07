@@ -5,6 +5,8 @@ import { CoreHubTokenVerifier } from './auth/core-hub-token.verifier.js';
 import { JwksService } from './auth/jwks.service.js';
 import { RolesGuard } from './common/auth/roles.guard.js';
 import { EnvelopeInterceptor } from './common/http/envelope.js';
+import { RealtimeBus } from './common/realtime/realtime-bus.js';
+import { RealtimeSyncInterceptor } from './common/realtime/sync.interceptor.js';
 import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
 import { PrismaService } from './common/prisma/prisma.service.js';
 
@@ -129,6 +131,7 @@ export function configureApp(app: INestApplication): void {
     ),
     new RolesGuard(reflector, app.get(PrismaService)),
   );
-  app.useGlobalInterceptors(new EnvelopeInterceptor());
+  // ซิงก์ทั้งเว็บ: เขียนสำเร็จแล้วบอกหน้าเว็บที่เปิดอยู่ให้ดึงใหม่ทันที (common/realtime/sync.interceptor.ts)
+  app.useGlobalInterceptors(new EnvelopeInterceptor(), new RealtimeSyncInterceptor(app.get(RealtimeBus)));
   app.useGlobalFilters(new HttpExceptionFilter());
 }

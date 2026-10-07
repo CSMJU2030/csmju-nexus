@@ -5,6 +5,7 @@ import { VoiceRoomDock } from '@/components/csmju/voice-room-panel';
 import { MessagesDock } from '@/components/csmju/messages-dock';
 import { MobileTabBar, MobileTopBar } from '@/components/csmju/mobile-bars';
 import { QueryProvider } from '@/components/csmju/query-provider';
+import { RealtimeSync } from '@/components/csmju/realtime-sync';
 import { SessionProvider } from '@/lib/csmju/session';
 
 /// เปลือกของแอป — หน้าตาแบบ Instagram บนเว็บ
@@ -24,6 +25,8 @@ export default function AppLayout({ children }: LayoutProps<'/'>) {
     // (อยู่ชั้นนอกของ CallProvider เพราะการโทรต้องสั่งให้ออกจากห้องเสียงก่อนได้)
     <QueryProvider>
       <SessionProvider>
+        {/* ทุกหน้าอัปเดตสดเมื่อคนอื่นโพสต์ ไลก์ คอมเมนต์ ส่งข้อความ ฯลฯ (sync:changed) */}
+        <RealtimeSync />
         <VoiceRoomProvider>
           <CallProvider>
             {/* h-dvh + overflow-hidden: แถบซ้ายอยู่กับที่ เนื้อหาเลื่อนในตัวเอง */}

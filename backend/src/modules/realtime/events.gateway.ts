@@ -18,6 +18,7 @@ import { RealtimeBus } from '../../common/realtime/realtime-bus.js';
 import {
   REALTIME_PATH,
   SOCKET_NAMESPACE,
+  SYNC_ROOM,
   userRoom,
   type JoinResult,
   type MessageEvent,
@@ -55,6 +56,16 @@ interface SocketState {
   /// (รายละเอียดอยู่ที่ handleConnection)
   roomsAtDisconnect: string[];
 }
+
+/// event ของห้องที่ทำให้รายการแชทของสมาชิกเปลี่ยน (ข้อความล่าสุด · ยังไม่อ่าน · ชื่อห้อง · สมาชิก)
+const INBOX_EVENTS = new Set([
+  'message:new',
+  'message:deleted',
+  'message:updated',
+  'channel:updated',
+  'channel:deleted',
+  'channel:members',
+]);
 
 /// Socket.io อยู่ในโพรเซสเดียวกับ REST ได้เพราะ NestJS เป็นเซิร์ฟเวอร์ที่รันค้าง
 /// ต่างจาก Next.js บน Vercel ที่เป็น serverless จึงถือ WebSocket ไม่ได้
@@ -217,6 +228,12 @@ export class EventsGateway
 
     this.bus.roomEvents.subscribe((event) => {
       server.to(event.room).emit(event.event, event.payload);
+      if (INBOX_EVENTS.has(event.event)) this.pingInbox(event.room);
+    });
+
+    // ซิงก์ทั้งเว็บ — ไม่มีเนื้อหา มีแค่หัวข้อ (ดู common/realtime/sync.interceptor.ts)
+    this.bus.syncEvents.subscribe((push) => {
+      server.to(push.coreUserId ? userRoom(push.coreUserId) : SYNC_ROOM).emit('sync:changed', { topic: push.topic });
     });
   }
 
@@ -229,6 +246,7 @@ export class EventsGateway
 
     // เข้าห้องส่วนตัวทันทีที่ต่อติด เพื่อรับการแจ้งเตือนได้โดยไม่ต้องเปิดห้องแชทไว้
     void socket.join(userRoom(state.user.coreUserId));
+    void socket.join(SYNC_ROOM);
 
     // จดห้องไว้ตอน 'disconnecting' เพราะตอน 'disconnect' มันว่างไปแล้ว
     //
@@ -418,6 +436,7 @@ export class EventsGateway
 
       // เขียนฐานข้อมูลสำเร็จแล้วค่อยกระจาย — ลำดับนี้ห้ามสลับ
       this.server.to(payload.channelId).emit('message:new', message);
+      this.pingInbox(payload.channelId);
 
       // คำตอบในเธรดไม่ขึ้นไทม์ไลน์หลัก แต่ต้องบอกให้ตัวเลข "n คำตอบ"
       // ที่ข้อความต้นเธรดขยับ ไม่งั้นคนที่เปิดห้องอยู่จะไม่รู้ว่ามีคนตอบ
@@ -824,6 +843,30 @@ export class EventsGateway
   /// ให้ชั้น REST เรียกเมื่อส่งข้อความผ่าน HTTP เพื่อให้คนที่เปิดห้องอยู่เห็นทันที
   broadcastMessage(channelId: string, message: MessageEvent): void {
     this.server?.to(channelId).emit('message:new', message);
+    this.pingInbox(channelId);
+  }
+
+  private readonly inboxTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /// รายการแชท/ตัวเลขยังไม่อ่านของ **สมาชิกทุกคน** ขยับทันที แม้ไม่ได้เปิดห้องนั้นอยู่
+  /// (event ของห้องถึงเฉพาะคนที่เปิดห้อง) · รวบหลายข้อความในเสี้ยววินาทีเป็นสัญญาณเดียว
+  private pingInbox(channelId: string): void {
+    if (!this.server || this.inboxTimers.has(channelId)) return;
+
+    this.inboxTimers.set(
+      channelId,
+      setTimeout(() => {
+        this.inboxTimers.delete(channelId);
+        void this.prisma.channelMember
+          .findMany({ where: { channelId }, select: { coreUserId: true } })
+          .then((members) => {
+            for (const member of members) {
+              this.server.to(userRoom(member.coreUserId)).emit('sync:changed', { topic: 'inbox' });
+            }
+          })
+          .catch(() => undefined);
+      }, 250),
+    );
   }
 
   /// ให้ชั้น REST เรียกเมื่อมีข้อความถูกลบ เพื่อให้คนที่เปิดห้องอยู่เห็นทันที
@@ -831,6 +874,7 @@ export class EventsGateway
     this.server
       ?.to(channelId)
       .emit('message:deleted', { channelId: channelId, messageId: messageId });
+    this.pingInbox(channelId);
   }
 
   private async releaseVoice(coreUserId: string): Promise<void> {
