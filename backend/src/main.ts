@@ -53,7 +53,12 @@ async function bootstrap(): Promise<void> {
   const document = buildOpenApiDocument(app);
 
   SwaggerModule.setup('api/docs', app, document);
-  await writeFile(OPENAPI_FILE, JSON.stringify(document, null, 2), 'utf8');
+
+  // บน server ระบบไฟล์ของ container อ่านอย่างเดียว (deployment.md ข้อ 3.4) — เขียนเฉพาะตอนพัฒนา
+  // ถ้าเขียนไม่ได้ก็ไม่ให้ server ล้ม (CI ยังตรวจด้วย openapi:check)
+  if (process.env.NODE_ENV !== 'production') {
+    await writeFile(OPENAPI_FILE, JSON.stringify(document, null, 2), 'utf8').catch(() => undefined);
+  }
 
   const port = Number(process.env.PORT ?? 4222);
 

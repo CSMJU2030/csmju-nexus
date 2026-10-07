@@ -2554,7 +2554,7 @@ describe('มาตรฐาน API ของ CSMJU2030 (e2e)', () => {
         const dm = await openDm(A, B);
 
         try {
-          const url = new URL(intent.body.data.uploadUrl);
+          const url = new URL(intent.body.data.uploadUrl, 'http://localhost'); // ลิงก์เป็น path บนโดเมนของหน้าเว็บ
 
           await http()
             .put(url.pathname + url.search)

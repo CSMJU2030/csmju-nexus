@@ -14,10 +14,15 @@ const WORKSPACE_ROOT = join(__dirname, "..");
 /// rewrite ถูกคำนวณตอน `next build` ด้วย — build สำหรับ Docker ต้องตั้ง
 /// BACKEND_URL ตอน build ไม่ใช่แค่ตอนรัน
 ///
-/// socket.io ส่งผ่าน rewrite ไม่ได้ (WebSocket) จึงต่อตรงที่ NEXT_PUBLIC_SOCKET_URL
+/// socket.io ผ่าน rewrite `/realtime` แบบ long-polling (WebSocket ต้องให้ reverse proxy ส่ง Upgrade)
 const BACKEND_URL = (process.env.BACKEND_URL ?? "http://127.0.0.1:4222").replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
+  /// image ของ web (frontend/Dockerfile) copy `.next/standalone` — deployment.md ข้อ 3 · DEP-04
+  output: "standalone",
+  /// standalone ต้องตามรอยไฟล์จากรากของ pnpm workspace ไม่ใช่แค่ frontend/
+  outputFileTracingRoot: WORKSPACE_ROOT,
+
   /// ปุ่ม "N" ของ Next dev tools (มีเฉพาะตอน next dev) ไปไว้มุมขวาบน
   /// ค่าเริ่มต้นคือซ้ายล่าง ซึ่งทับไอคอนล่างสุดของแถบซ้าย ส่วนขวาล่างเป็นที่ของปุ่มข้อความ
   devIndicators: { position: 'top-right' },
@@ -33,6 +38,8 @@ const nextConfig: NextConfig = {
       { source: "/auth/login", destination: `${BACKEND_URL}/auth/login` },
       { source: "/auth/callback", destination: `${BACKEND_URL}/auth/callback` },
       { source: "/auth/logout", destination: `${BACKEND_URL}/auth/logout` },
+      // แชท สายเรียกเข้า ห้องเสียง (socket.io) — long-polling ผ่าน HTTP ได้ทันที บน server ไม่ต้องเปิดพอร์ต api
+      { source: "/realtime", destination: `${BACKEND_URL}/realtime` },
     ];
   },
 

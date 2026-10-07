@@ -86,7 +86,7 @@ describe('คืนไฟล์เมื่อลบโพสต์ คลิป
       })
       .expect(201);
 
-    const url = new URL(intent.body.data.uploadUrl);
+    const url = new URL(intent.body.data.uploadUrl, 'http://localhost'); // ลิงก์เป็น path บนโดเมนของหน้าเว็บ
 
     await http()
       .put(url.pathname + url.search)
@@ -320,5 +320,48 @@ describe('คืนไฟล์เมื่อลบโพสต์ คลิป
         data: { coverAssetId: null },
       });
     }
+  });
+
+  it('ไฟล์เก็บในฐาน (deployment.md ข้อ 4.3): ดาวน์โหลดแบบ private no-store · attachment · nosniff · ขอช่วงไบต์ได้ · ลิงก์ปลอม 401 · เกิน 10 MB 400', async () => {
+    const asset = await upload(author, 'IMAGE');
+    const link = await http().get(`/api/v1/assets/${asset.id}/download-url`).set('Authorization', bearer(author)).expect(200);
+    const url = link.body.data.downloadUrl as string;
+
+    expect(url.startsWith('/api/v1/asset-blobs/')).toBe(true);
+
+    const full = await http().get(url).buffer(true).parse((res, cb) => {
+      const chunks: Buffer[] = [];
+
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => cb(null, Buffer.concat(chunks)));
+    }).expect(200);
+
+    expect(Buffer.compare(full.body as Buffer, PNG)).toBe(0);
+    expect(full.headers['cache-control']).toBe('private, no-store');
+    expect(full.headers['x-content-type-options']).toBe('nosniff');
+    expect(full.headers['content-disposition']).toMatch(/^attachment;/);
+    expect(full.headers.etag).toMatch(/^"[0-9a-f]{64}"$/);
+
+    const part = await http().get(url).set('Range', 'bytes=0-3').expect(206);
+
+    expect(part.headers['content-range']).toBe(`bytes 0-3/${PNG.length}`);
+
+    await http().get(url.replace(/signature=[0-9a-f]+/, 'signature=00')).expect(401);
+
+    // ลิงก์อัปโหลดจริงแต่ไบต์เกินเพดาน — ตัดตั้งแต่ตอนรับ ตอบ 400 VALIDATION_ERROR
+    const intent = await http()
+      .post('/api/v1/assets/upload-intents')
+      .set('Authorization', bearer(author))
+      .send({ fileName: 'big.png', sizeBytes: 1024, bucket: 'attachments' })
+      .expect(201);
+    const put = new URL(intent.body.data.uploadUrl as string, 'http://localhost');
+    const tooBig = await http()
+      .put(put.pathname + put.search)
+      .set('content-type', 'application/octet-stream')
+      .send(Buffer.alloc(10 * 1024 * 1024 + 1))
+      .expect(400);
+
+    expect(tooBig.body.error.code).toBe('VALIDATION_ERROR');
+    expect(await storage.head('attachments', intent.body.data.objectPath ?? '')).toBeNull();
   });
 });

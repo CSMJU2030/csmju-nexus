@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 /// หลังบ้านรับได้ไม่เกิน 10 ชิ้นต่อโพสต์ (ภาพหมุนของ Instagram ก็ 10 เหมือนกัน)
 export const MAX_POST_MEDIA = 10;
 /// เพดานต่อไฟล์เดียวกับหลังบ้าน (MAX_FILE_BYTES ใน asset.dto.ts)
-const MAX_FILE_BYTES = 50 * 1024 * 1024;
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_CONTENT = 8000;
 const MAX_TITLE = 200;
 const COURSE_TAG = /^[A-Z]{2,4}[0-9]{3}$/;

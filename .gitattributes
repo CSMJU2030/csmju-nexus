@@ -1,3 +1,6 @@
 # ตัวอ่าน manifest ของ standards/conformance พังเมื่อไฟล์เป็น CRLF (อ่านไม่ได้ตั้งแต่บรรทัด 1)
 # core.autocrlf=true บน Windows จะแปลงให้เองตอน checkout — ล็อกไว้เป็น LF เสมอ
 subsystem.yaml text eol=lf
+# สคริปต์ที่รันใน container Linux ต้องเป็น LF เสมอ (Windows แปลงเป็น CRLF แล้ว #!/bin/sh พัง)
+*.sh text eol=lf
+Dockerfile text eol=lf

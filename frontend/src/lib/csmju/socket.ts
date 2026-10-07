@@ -17,10 +17,10 @@
 import { io, type Socket } from 'socket.io-client';
 import { api } from './api';
 
-const SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4222';
-
+/// ต่อที่โดเมนเดียวกับหน้าเว็บ — `next.config.ts` rewrite `/realtime` ไปที่หลังบ้าน
+/// (บน server หลังบ้านไม่เปิดออกนอก มีแต่หน้าเว็บ · deployment.md ข้อ 3 · ห้ามฝัง localhost)
 const NAMESPACE = '/realtime';
+const ENGINE_PATH = '/realtime';
 
 /// หน่วงก่อนต่อใหม่ เพิ่มขึ้นเรื่อย ๆ จนถึงเพดาน
 ///
@@ -114,9 +114,12 @@ async function createSocket(): Promise<Socket> {
     '/realtime-tickets',
   );
 
-  const next = io(`${SOCKET_URL}${NAMESPACE}`, {
+  const next = io(`${window.location.origin}${NAMESPACE}`, {
     auth: { ticket },
-    transports: ['websocket'],
+    path: ENGINE_PATH,
+    addTrailingSlash: false,
+    // long-polling ผ่าน HTTP ใช้ได้ทุกที่ แล้วอัปเกรดเป็น WebSocket เองถ้าเส้นทางรองรับ
+    transports: ['polling', 'websocket'],
     // ปิด reconnect ในตัวของ socket.io เพราะมันจะต่อใหม่ด้วย "ตั๋วใบเดิม"
     // ซึ่งใช้ได้ครั้งเดียวและถูกปฏิเสธเสมอ — เราต่อใหม่เองพร้อมขอตั๋วใบใหม่
     reconnection: false,

@@ -1,10 +1,7 @@
 /// สัญญาของที่เก็บไฟล์ — สลับผู้ให้บริการได้โดยไม่แตะโค้ดโดเมน
 ///
-/// การอัปโหลดต้องไม่ให้ไบต์ไหลผ่าน backend บน production เพราะ
-///   1. กิน bandwidth ฟรีที่มีจำกัด
-///   2. ทำให้ backend ต้องรับ body ขนาดใหญ่ซึ่งเปลืองหน่วยความจำ
-/// ฉะนั้น production ออก signed URL ให้เบราว์เซอร์ PUT ตรงเข้าที่เก็บ
-/// (ตัว LocalDiskStorage สำหรับ dev รับไบต์ผ่าน backend ซึ่งยอมรับได้ในเครื่อง)
+/// ตัวที่ใช้จริงคือ DatabaseStorage (ตาราง stored_objects · deployment.md ข้อ 4.3) — ออก signed URL อายุสั้น
+/// ที่เป็น path บนโดเมนเดียวกับหน้าเว็บ ให้เบราว์เซอร์ PUT/GET ผ่าน rewrite มาที่ api
 
 export interface UploadTicket {
   uploadUrl: string;

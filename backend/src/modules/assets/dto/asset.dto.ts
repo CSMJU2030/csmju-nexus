@@ -15,8 +15,8 @@ import type { AssetModel } from '../../../generated/prisma/models.js';
 export const BUCKETS = ['reels', 'attachments'] as const;
 export type Bucket = (typeof BUCKETS)[number];
 
-/// เพดานต่อไฟล์ — ตั้งไว้ต่ำกว่าเพดานของ Supabase free tier
-export const MAX_FILE_BYTES = 50 * 1024 * 1024;
+/// เพดานต่อไฟล์ — ไฟล์เก็บในฐานข้อมูลของระบบ (standards deployment.md ข้อ 4.3: ไม่เกิน 10 MB · PL ตัดสิน 7 ต.ค. 2569)
+export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 export class CreateUploadIntentDto {
   @ApiProperty({ example: 'project-final.zip' })

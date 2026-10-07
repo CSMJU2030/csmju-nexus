@@ -1,0 +1,87 @@
+# ทดสอบ CSMJU Nexus แบบเดียวกับที่ server รัน (standards docs/deployment.md ข้อ 6) — server ไม่ใช้ไฟล์นี้
+#
+#   docker compose up -d --build     db + api + web → http://localhost:3222
+#
+# ปิด `pnpm dev` ก่อน เพราะใช้พอร์ต 3222 เดียวกัน (callback ที่ลงทะเบียนไว้คือ http://localhost:3222/auth/callback)
+# ฐานข้อมูลของ dev (backend/docker-compose.yml พอร์ต 55432) แยกจากไฟล์นี้ — ที่นี่ใช้ volume ของตัวเอง
+# ชื่อ service `api` และพอร์ต 4000 เป็นส่วนหนึ่งของสัญญา: image ของ web ส่ง /api/* /auth/* /realtime ไปที่ http://api:4000
+name: csmju-nexus-stack
+
+# ล็อกเหมือน server: ระบบไฟล์อ่านอย่างเดียว ไม่มี capability จำกัด RAM และหมุน log
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+  logging:
+    driver: json-file
+    options: { max-size: '10m', max-file: '3' }
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      # เครื่องทดสอบเท่านั้น — บน server DevOps สร้างฐานและ role ให้
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: csmju_nexus
+    volumes:
+      - csmju-nexus-stack-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d csmju_nexus']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 4000
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/csmju_nexus
+      DATABASE_POOL_MAX: 5
+      STORAGE_URL_SECRET: ${STORAGE_URL_SECRET:-local-compose-only-not-a-secret}
+      CORE_HUB_URL: ${CORE_HUB_URL:-https://csmju2030.jowave.com}
+      CORE_HUB_JWKS_URL: ${CORE_HUB_JWKS_URL:-https://csmju2030.jowave.com/api/v1/.well-known/jwks.json}
+      CORE_HUB_WEB_URL: ${CORE_HUB_WEB_URL:-https://csmju2030.jowave.com}
+      CORE_HUB_ISSUER: ${CORE_HUB_ISSUER:-core-hub}
+      CORE_HUB_AUDIENCE: ${CORE_HUB_AUDIENCE:-csmju2030}
+      SUBSYSTEM_ID: ${SUBSYSTEM_ID:-csmju-nexus}
+      TURN_URL: ${TURN_URL:-}
+      TURN_USERNAME: ${TURN_USERNAME:-}
+      TURN_CREDENTIAL: ${TURN_CREDENTIAL:-}
+      TZ: Asia/Bangkok
+    tmpfs:
+      - /tmp:size=32m
+    mem_limit: 512m
+    # ไม่เปิดพอร์ต: เบราว์เซอร์เข้าถึง api ผ่าน web เท่านั้น (/api/* · /auth/* · /realtime)
+
+  web:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    tmpfs:
+      - /tmp:size=32m
+      - /app/frontend/.next/cache:size=64m
+    mem_limit: 384m
+    environment:
+      CORE_HUB_WEB_URL: ${CORE_HUB_WEB_URL:-https://csmju2030.jowave.com}
+      SUBSYSTEM_ID: ${SUBSYSTEM_ID:-csmju-nexus}
+      TZ: Asia/Bangkok
+    ports:
+      - '127.0.0.1:3222:3000'
+
+volumes:
+  csmju-nexus-stack-db:
