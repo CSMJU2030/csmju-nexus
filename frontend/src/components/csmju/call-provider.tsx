@@ -49,6 +49,7 @@ import {
   type DeviceSelection,
 } from '@/lib/csmju/call-devices';
 import { matchShortcut, type CallShortcut } from '@/lib/csmju/call-shortcuts';
+import { ImageShare } from '@/lib/csmju/image-share';
 import { sharePreviewReducer } from '@/lib/csmju/call-share';
 import type { PeerMediaState } from '@/lib/csmju/call-media';
 import { Mesh } from '@/lib/csmju/call-mesh';
@@ -191,6 +192,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [muted, setMuted] = useState(false);
   const [deafened, setDeafened] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  /// ย่อหน้าจอสายเป็นกล่องลอย (ใช้เว็บต่อได้ระหว่างโทร) — กลับเป็นเต็มจอทุกครั้งที่เริ่มสายใหม่
+  const [minimized, setMinimized] = useState(false);
+  const [minimizedFor, setMinimizedFor] = useState<string | null>(null);
+  /// แชร์ภาพเป็นสไลด์ (มือถือที่แชร์จอสดไม่ได้) — ตำแหน่งสไลด์ที่แสดงอยู่
+  const [slides, setSlides] = useState<{ index: number; total: number } | null>(null);
+  const imageShareRef = useRef<ImageShare | null>(null);
   const [starting, setStarting] = useState(false);
   const [cameraBusy, setCameraBusy] = useState(false);
 
@@ -1465,6 +1472,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       stopAll(stream);
       screenStream.current = null;
+      imageShareRef.current?.stop();
+      imageShareRef.current = null;
+      setSlides(null);
 
       const current = callRef.current;
 
@@ -1482,36 +1492,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     [broadcastState, offerAll],
   );
 
-  const toggleScreen = useCallback(async () => {
-    const socket = socketRef.current;
-    const current = callRef.current;
-
-    if (!current || !socket) return;
-
-    if (screenStream.current) {
-      await stopPresenting('stopped');
-
-      return;
-    }
-
-    try {
-      const claim = await emitWithAck<{ ok: boolean; error?: string }>(
-        socket,
-        'screen:claim',
-        { sessionId: current.sessionId },
-      );
-
-      if (!claim.ok) {
-        setError(claim.error ?? 'แชร์หน้าจอไม่สำเร็จ');
-
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: false,
-      });
-
+  /// ส่งสตรีมที่ได้ (จอจริง หรือสไลด์ภาพ) เข้าสายในฐานะ "หน้าจอที่แชร์"
+  const presentStream = useCallback(
+    async (stream: MediaStream) => {
       screenStream.current = stream;
 
       for (const track of stream.getVideoTracks()) {
@@ -1530,14 +1513,93 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       // เพิ่มแทร็กแล้วต้องเจรจาใหม่ ไม่งั้นอีกฝ่ายไม่ได้รับภาพ (เรียกตรง ๆ
       // ไม่พึ่ง onnegotiationneeded อย่างเดียว เพราะลำดับการยิงต่างกัน)
       await offerAll();
-    } catch {
-      // ผู้ใช้กดยกเลิกหน้าต่างเลือกจอ — ต้องคืนสิทธิ์ ไม่งั้นห้องจะล็อกไว้
-      socket.emit('screen:release', { sessionId: current.sessionId });
-      screenStream.current = null;
-      setPresenting(false);
-      dispatchShare('stopped');
+    },
+    [stopPresenting, broadcastState, offerAll],
+  );
+
+  /// ขอสิทธิ์เป็นผู้แชร์ของห้อง (มีได้ทีละคน) · ไม่ได้ = แจ้งเหตุผลแล้วคืน false
+  const claimScreen = useCallback(async (): Promise<boolean> => {
+    const socket = socketRef.current;
+    const current = callRef.current;
+
+    if (!current || !socket) return false;
+
+    const claim = await emitWithAck<{ ok: boolean; error?: string }>(socket, 'screen:claim', {
+      sessionId: current.sessionId,
+    });
+
+    if (!claim.ok) setError(claim.error ?? 'แชร์หน้าจอไม่สำเร็จ');
+
+    return claim.ok;
+  }, [setError]);
+
+  const releaseScreen = useCallback(() => {
+    const current = callRef.current;
+
+    // ผู้ใช้ยกเลิกหรือเปิดไม่สำเร็จ — ต้องคืนสิทธิ์ ไม่งั้นห้องจะล็อกไว้
+    if (current) socketRef.current?.emit('screen:release', { sessionId: current.sessionId });
+    screenStream.current = null;
+    setPresenting(false);
+    dispatchShare('stopped');
+  }, []);
+
+  const toggleScreen = useCallback(async () => {
+    if (!callRef.current || !socketRef.current) return;
+
+    if (screenStream.current) {
+      await stopPresenting('stopped');
+
+      return;
     }
-  }, [stopPresenting, broadcastState, offerAll, setError]);
+
+    try {
+      if (!(await claimScreen())) return;
+
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      });
+
+      await presentStream(stream);
+    } catch {
+      // ผู้ใช้กดยกเลิกหน้าต่างเลือกจอ
+      releaseScreen();
+    }
+  }, [stopPresenting, claimScreen, presentStream, releaseScreen]);
+
+  /// มือถือ: แชร์ภาพที่เลือก (แคปหน้าจอ · รูป) เป็นสไลด์แทนการแชร์จอสด (lib/csmju/image-share.ts)
+  const shareImages = useCallback(
+    async (files: File[]) => {
+      if (!callRef.current || !socketRef.current || files.length === 0) return;
+
+      if (screenStream.current) await stopPresenting('stopped');
+
+      try {
+        if (!(await claimScreen())) return;
+
+        const share = await ImageShare.create(files);
+
+        imageShareRef.current = share;
+        setSlides(share.position);
+        await presentStream(share.stream);
+      } catch (caught) {
+        imageShareRef.current?.stop();
+        imageShareRef.current = null;
+        setSlides(null);
+        releaseScreen();
+        setError(caught instanceof Error ? caught.message : 'แชร์ภาพไม่สำเร็จ');
+      }
+    },
+    [stopPresenting, claimScreen, presentStream, releaseScreen, setError],
+  );
+
+  const moveSlide = useCallback((delta: number) => {
+    const share = imageShareRef.current;
+
+    if (!share) return;
+    share.go(delta);
+    setSlides(share.position);
+  }, []);
 
   const toggleCamera = useCallback(() => {
     if (cameraRef.current) void stopCamera();
@@ -1612,8 +1674,66 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   );
 
   const phase = peers.some((peer) => peer.status === 'joined') ? 'in-call' : 'calling';
-  const trapFocus = !settingsOpen && !reportOpen && !incoming;
+
+  // สายใหม่เริ่มที่เต็มจอเสมอ (ปรับระหว่าง render ไม่ใช่ใน effect)
+  const sessionKey = call?.sessionId ?? null;
+
+  if (sessionKey !== minimizedFor) {
+    setMinimizedFor(sessionKey);
+    if (minimized) setMinimized(false);
+  }
+  // ย่อเป็นกล่องลอยแล้วต้องไม่กักโฟกัส — ผู้ใช้กำลังพิมพ์แชทหรือใช้หน้าอื่นอยู่
+  const trapFocus = !settingsOpen && !reportOpen && !incoming && !minimized;
   const outputSupported = supportsSinkId();
+
+  // ปุ่มคุมสายบนหน้าจอล็อก/แถบสื่อของระบบ (วางสาย · ปิดไมค์ · ปิดกล้อง) — สลับแอปหรือล็อกจอแล้วยังคุยและคุมสายได้
+  useEffect(() => {
+    const session = typeof navigator === 'undefined' ? undefined : navigator.mediaSession;
+
+    if (!session || !call) return;
+
+    const bind = (action: string, handler: (() => void) | null) => {
+      try {
+        session.setActionHandler(action as MediaSessionAction, handler);
+      } catch {
+        // เบราว์เซอร์นี้ไม่รู้จักปุ่มนี้ (ปุ่มคุมสายมีใน Chrome เท่านั้น) — ข้ามไป
+      }
+    };
+
+    try {
+      session.metadata = new MediaMetadata({
+        title: call.group ? 'สายกลุ่ม' : 'กำลังคุยสาย',
+        artist: 'CS Nexus',
+        artwork: [{ src: '/csmju-mark.png', sizes: '256x256', type: 'image/png' }],
+      });
+    } catch {
+      // ไม่มี MediaMetadata — ปุ่มยังใช้ได้
+    }
+
+    bind('hangup', () => void hangUp());
+    bind('togglemicrophone', toggleMute);
+    bind('togglecamera', toggleCamera);
+
+    return () => {
+      bind('hangup', null);
+      bind('togglemicrophone', null);
+      bind('togglecamera', null);
+      session.metadata = null;
+    };
+  }, [call, hangUp, toggleMute, toggleCamera]);
+
+  useEffect(() => {
+    const session = typeof navigator === 'undefined'
+      ? undefined
+      : (navigator.mediaSession as (MediaSession & {
+          setMicrophoneActive?: (active: boolean) => Promise<void>;
+          setCameraActive?: (active: boolean) => Promise<void>;
+        }) | undefined);
+
+    if (!session || !call) return;
+    void session.setMicrophoneActive?.(!muted)?.catch(() => undefined);
+    void session.setCameraActive?.(cameraStream !== null)?.catch(() => undefined);
+  }, [call, muted, cameraStream]);
   const sinkId = outputSupported ? pickDevice(devices.audiooutput, selection.audiooutput) : null;
 
   const overlayNotice = notice && (
@@ -1678,6 +1798,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           onToggleCamera={toggleCamera}
           onFlipCamera={nextCamera(devices.videoinput, activeCameraId(cameraStream, selection.videoinput)) ? flipCamera : undefined}
           onToggleScreen={() => void toggleScreen()}
+          onShareImages={(files) => void shareImages(files)}
+          slides={slides}
+          onSlide={moveSlide}
+          minimized={minimized}
+          onMinimize={() => setMinimized(true)}
+          onRestore={() => setMinimized(false)}
           onHangUp={() => void hangUp()}
           onSettings={() => setSettingsOpen(true)}
           onFullscreen={toggleFullscreen}

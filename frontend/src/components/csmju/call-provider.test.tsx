@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, within, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
@@ -648,6 +648,25 @@ describe('เก็บสายให้สะอาดทุกทาง', () =
     );
   });
 
+  it('กล่องสายลอย: ย่อแล้วหน้าจอโทรเต็มจอหาย สายไม่หลุด · คุมไมค์/วางสายจากกล่องได้ · ขยายกลับได้', async () => {
+    await answeredCall();
+
+    await userEvent.click(screen.getByRole('button', { name: /ย่อเป็นกล่องลอย/ }));
+
+    const dock = await screen.findByRole('region', { name: /สายที่กำลังคุย/ });
+
+    expect(screen.queryByRole('dialog', { name: 'อยู่ในสาย' })).not.toBeInTheDocument();
+    expect(FakePeerConnection.latest().closed).toBe(false);
+
+    await userEvent.click(within(dock).getByRole('button', { name: 'ขยายเต็มจอ' }));
+    expect(await screen.findByRole('dialog', { name: 'อยู่ในสาย' })).toBeInTheDocument();
+
+    await userEvent.keyboard('{Escape}');
+    const again = await screen.findByRole('region', { name: /สายที่กำลังคุย/ });
+
+    await userEvent.click(within(again).getByRole('button', { name: 'วางสาย' }));
+    expect(emitted.find((row) => row.event === 'call:end')).toBeDefined();
+  });
   it('วางสายที่รับแล้วต้องบอกอีกฝั่งด้วย call:end', async () => {
     // call:cancel ถูกส่งเฉพาะตอนยังไม่มีใครรับ สายที่รับแล้วจึงเคยวางแบบ
     // เงียบสนิท ปล่อยให้อีกฝั่งนั่งมองแผงสายที่ตายไปแล้ว
