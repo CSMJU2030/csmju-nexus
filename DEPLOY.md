@@ -1,178 +1,38 @@
-# ขึ้นระบบจริงแบบไม่เสียเงินสักบาท
+# ขึ้นระบบจริง (standards `docs/deployment.md` 1.4+)
 
-คู่มือนี้พาขึ้นทั้งระบบด้วยชั้นใช้ฟรีล้วน **ไม่ต้องผูกบัตรเครดิต** ใช้เวลาราว
-30–45 นาทีถ้าทำครั้งแรก
+ระบบย่อยทุกตัวขึ้นบน server ของคณะที่ PM/DevOps ดูแล — **ทีมไม่ได้ deploy เอง** และไม่ใช้บริการภายนอก
+(เดิมไฟล์นี้อธิบาย Vercel + Render + Supabase ซึ่งขัดกับมาตรฐานแล้ว)
 
-| ส่วน | ใช้บริการ | ชั้นฟรีให้อะไร | ต้องใช้บัตร |
-| --- | --- | --- | --- |
-| หน้าบ้าน (Next.js) | Vercel Hobby | ไม่จำกัดโปรเจกต์ส่วนตัว | ไม่ |
-| หลังบ้าน (NestJS + WebSocket) | Render Free | 750 ชม./เดือน | ไม่ |
-| ฐานข้อมูล (PostgreSQL) | Supabase Free | 500 MB | ไม่ |
-| ที่เก็บไฟล์ | Supabase Storage | 1 GB | ไม่ |
-| STUN (เจาะ NAT) | Google + Cloudflare | ใช้ได้เลย | ไม่ |
+## ภาพรวม
 
-> ## ⚠️ เรื่องความปลอดภัยที่ต้องเข้าใจก่อน deploy
->
-> ระบบนี้ **ไม่มีหน้า login ของตัวเอง** และห้ามมี (Blueprint หน้า 8)
-> ตัวตนมาจาก header ที่ API Gateway แนบมาให้ แล้วระบบย่อย **เชื่อ** header นั้น
->
-> การเชื่อ header จะปลอดภัยก็ต่อเมื่อ **ไม่มีใครยิงเข้า backend ได้โดยตรง**
-> ถ้าเปิดรับจากอินเทอร์เน็ตโดยไม่มีอะไรกั้น ใครก็ส่ง header
-> `X-User-Id: <ชื่อใครก็ได้>` มาแล้วกลายเป็นคนนั้นทันที — อ่านแชทส่วนตัว
-> ลบโพสต์ เปลี่ยนสิทธิ์คนอื่น ได้ทั้งหมด
->
-> **ตอนนี้ยังไม่ได้ต่อกับ Gateway จริง** ฉะนั้น:
->
-> - หลังบ้านจะ **ไม่ยอมบูต** ถ้าไม่ได้ตั้ง `GATEWAY_SHARED_SECRET`
-> - ถ้าจะเดโมในวงปิด ให้ตั้ง `ALLOW_UNPROTECTED_GATEWAY=true` เพื่อยืนยันว่ารู้ตัว
->   แล้วมันจะบูตพร้อมเตือนใน log ทุกครั้ง
-> - **ห้ามใส่ข้อมูลจริงของคนอื่นลงระบบจนกว่าจะต่อ Gateway เสร็จ**
->
-> ---
->
-> **อ่านก่อนตัดสินใจ — ข้อจำกัดจริงของของฟรี**
->
-> - **Render หลับเมื่อไม่มีคนใช้** ราว 15 นาที คำขอแรกหลังหลับช้าราว 30–60
->   วินาที หลังจากนั้นเร็วปกติ ถ้าจะเดโม ให้เปิดเว็บทิ้งไว้หนึ่งครั้งก่อนเริ่มพูด
-> - **Supabase หยุดโปรเจกต์ที่ไม่มีใครแตะเลย 7 วัน** กดปลุกคืนได้ในหน้าเว็บ
->   ถ้าเว้นช่วงยาว (เช่นปิดเทอม) ให้เข้าไปกดปลุกก่อนใช้งานจริง
-> - **TURN ยังไม่มี** คนที่อยู่หลัง NAT แบบเจาะไม่ได้จะโทรไม่ติด — ให้กดปุ่ม
->   "ตรวจว่าเครือข่ายนี้โทรได้ไหม" ในหน้าห้องเสียงก่อน วิธีตั้ง TURN ฟรีอยู่ใน
->   `backend/.env.example`
->
-> ข้อจำกัดเหล่านี้ยอมรับได้สำหรับงานเรียนและการเดโม แต่ไม่เหมาะกับการเปิดใช้จริง
-> ทั้งคณะพร้อมกัน
+| | web | api |
+|---|---|---|
+| image (GitHub Actions build จาก `main` · `.github/workflows/images.yml` ของ DevOps) | `ghcr.io/csmju2030/csmju-nexus-web` | `ghcr.io/csmju2030/csmju-nexus-api` |
+| Dockerfile | `frontend/Dockerfile` (Next.js standalone · `BACKEND_URL=http://api:4000` ฝังตอน build) | `backend/Dockerfile` + `backend/docker/entrypoint.sh` |
+| พอร์ตใน container | 3000 | 4000 · `GET /api/health` |
+| ตอนสตาร์ต | `node frontend/server.js` | `prisma migrate deploy` แล้ว `node dist/main.js` |
+| env | `CORE_HUB_WEB_URL` · `SUBSYSTEM_ID` · `TZ` | ทุกตัวใน `backend/.env.example` (server: `NODE_ENV=production` · `PORT=4000` · `DATABASE_POOL_MAX=5`) |
 
----
+- ชื่อเว็บ: `https://csmju-nexus.jowave.com` (Cloudflare → Apache → `127.0.0.1:<พอร์ตใน csmju-map.txt>`)
+- **หลังขึ้น server แล้ว login จาก `localhost` ไม่ได้อีก** (callback ในทะเบียนมีค่าเดียว) — ทดสอบบน server เท่านั้น
+- หลังขึ้นครั้งแรก server ดึง `:main` ใหม่เองทุก ~10 นาที → **merge เข้า `main` = deploy** · ย้อนเวอร์ชันให้ DevOps ปักหมุด tag `sha-…`
 
-## 1. ฐานข้อมูลและที่เก็บไฟล์ — Supabase
+## ทดสอบในเครื่องแบบเดียวกับ server (deployment.md ข้อ 6)
 
-1. สมัครที่ supabase.com แล้วสร้างโปรเจกต์ใหม่ (เลือก region **Southeast Asia
-   (Singapore)** จะใกล้ไทยที่สุด)
-2. ตั้งรหัสผ่านฐานข้อมูลแล้ว**จดไว้** หน้าเว็บจะไม่โชว์ให้อีก
-3. ไปที่ **Project Settings → Database → Connection string → URI**
-   คัดลอกมาเก็บไว้ นี่คือ `DATABASE_URL`
-
-   > ใช้แบบ **Connection pooling** (พอร์ต 6543) ไม่ใช่แบบตรง (5432) เพราะ
-   > Render ชั้นฟรีเปิดการเชื่อมต่อได้จำกัด ถ้าใช้แบบตรงจะเจอ "too many
-   > connections" ตอนมีคนใช้พร้อมกันหลายคน
-
-4. ไปที่ **Storage** สร้าง bucket สองอัน: `reels` และ `attachments`
-
-   **ตั้งทั้งสองอันเป็น Private** ห้ามเปิดสาธารณะ — ถ้าเปิด ใครเดา URL ถูก
-   ก็อ่านไฟล์การบ้านของคนอื่นได้ทั้งหมด
-
-5. ไปที่ **Project Settings → API** คัดลอก
-   - `Project URL` → `SUPABASE_URL`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY`
-
-   > กุญแจ `service_role` ข้ามกฎความปลอดภัยทั้งหมดของ Supabase ได้
-   > **ใช้ที่หลังบ้านเท่านั้น ห้ามใส่ในหน้าบ้านหรือ commit ลง git เด็ดขาด**
-
----
-
-## 2. หลังบ้าน — Render
-
-1. สมัครที่ render.com แล้วเชื่อมบัญชี GitHub
-2. **New → Blueprint** เลือก repo นี้ Render จะอ่าน `render.yaml` แล้วตั้งค่า
-   ให้เองทั้งหมด
-3. กรอกค่าที่มันถามสี่ตัว:
-
-   | ช่อง | ใส่อะไร |
-   | --- | --- |
-   | `DATABASE_URL` | URI แบบ pooling จากข้อ 1.3 |
-   | `SUPABASE_URL` | จากข้อ 1.5 |
-   | `SUPABASE_SERVICE_ROLE_KEY` | จากข้อ 1.5 |
-   | `CORS_ORIGIN` | ใส่ทีหลัง (ยังไม่รู้โดเมนหน้าบ้าน) — ใส่ `http://localhost:3000` ไปก่อน |
-   | `ALLOW_UNPROTECTED_GATEWAY` | `true` (เพราะยังไม่ได้ต่อ Gateway — อ่านกรอบเตือนข้างบนก่อน) |
-
-4. กด **Apply** แล้วรอ build เสร็จ (~5 นาที) migration จะรันเองในขั้นตอน build
-5. เปิด `https://<ชื่อบริการ>.onrender.com/api/health` ต้องได้
-
-   ```json
-   { "success": true, "data": { "status": "ok", "database": "up" } }
-   ```
-
-   ถ้า `database` เป็น `down` แปลว่า `DATABASE_URL` ผิด
-
-**จด URL ของหลังบ้านไว้** จะใช้ในขั้นตอนถัดไป
-
----
-
-## 3. หน้าบ้าน — Vercel
-
-1. สมัครที่ vercel.com แล้วเชื่อม GitHub
-2. **Add New → Project** เลือก repo นี้
-3. Vercel จะตรวจเจอ Next.js เอง **ไม่ต้องแก้ Build Command หรือ Root Directory**
-4. เปิด **Environment Variables** แล้วใส่สองตัว (ใช้ URL จากข้อ 2):
-
-   ```
-   NEXT_PUBLIC_API_URL   = https://<ชื่อบริการ>.onrender.com/api/v1
-   NEXT_PUBLIC_SOCKET_URL = https://<ชื่อบริการ>.onrender.com
-   ```
-
-   > `NEXT_PUBLIC_API_URL` ต้องมี `/api/v1` ต่อท้าย ส่วน `NEXT_PUBLIC_SOCKET_URL`
-   > **ต้องไม่มี** เพราะ socket ต่อที่ราก แล้วเติม namespace `/realtime` เอง
-
-5. กด **Deploy** แล้วจด URL ที่ได้ (เช่น `https://cs-nexus.vercel.app`)
-
----
-
-## 4. ปิดวง — บอกหลังบ้านว่าใครเรียกได้
-
-กลับไปที่ Render → บริการของเรา → **Environment** แก้
-
-```
-CORS_ORIGIN = https://cs-nexus.vercel.app
+```bash
+# ปิด pnpm dev ก่อน (ใช้พอร์ต 3222 เดียวกัน)
+docker compose up -d --build        # db + api + web → http://localhost:3222
+docker compose ps                   # db api web ต้อง healthy
+docker stats --no-stream            # web + api รวมไม่ควรเกิน ~400 MB (จำกัด api 512m · web 384m)
+docker compose down
 ```
 
-ใส่โดเมนจริงจาก Vercel **ห้ามใส่ `*`** — CORS ที่เปิดกว้างแปลว่าเว็บไหนก็ยิง
-API แทนผู้ใช้ที่ล็อกอินอยู่ได้
+## ข้อมูลสำหรับ DevOps (checklist ข้อ 7.2)
 
-กด **Save** Render จะรีสตาร์ทให้เอง (~1 นาที)
-
----
-
-## 5. ตรวจว่าใช้ได้จริง
-
-เปิดเว็บที่ Vercel แล้วไล่ทีละข้อ:
-
-- [ ] หน้าฟีดโหลดขึ้น ไม่มีข้อความ "ติดต่อหลังบ้านไม่ได้"
-- [ ] หน้าห้องแชท — ส่งข้อความแล้วขึ้นทันทีโดยไม่ต้องรีเฟรช (แปลว่า WebSocket ต่อติด)
-- [ ] หน้าห้องเสียง — กด **"ตรวจว่าเครือข่ายนี้โทรได้ไหม"** แล้วดูผล
-- [ ] อัปโหลดรูปในสตอรี่ — ถ้าขึ้น แปลว่า Supabase Storage ต่อถูก
-
-ถ้าข้อไหนไม่ผ่าน เปิด **Logs** ในหน้า Render จะเห็นสาเหตุตรง ๆ
-
----
-
-## เจอปัญหาบ่อย ๆ
-
-**"ติดต่อหลังบ้านไม่ได้" ทั้งที่ `/api/health` เขียว**
-→ CORS `CORS_ORIGIN` ไม่ตรงกับโดเมน Vercel แบบเป๊ะ ๆ (มี/ไม่มี `https://`
-หรือมี `/` ต่อท้าย ก็ถือว่าคนละค่า)
-
-**แชทไม่เด้ง ต้องรีเฟรชถึงเห็นข้อความใหม่**
-→ WebSocket ต่อไม่ติด เช็คว่า `NEXT_PUBLIC_SOCKET_URL` ไม่มี `/api/v1` ต่อท้าย
-
-**คำขอแรกช้ามาก แล้วหลังจากนั้นปกติ**
-→ ปกติของชั้นใช้ฟรี (cold start) ไม่ใช่บั๊ก
-
-**`too many connections`**
-→ ใช้ connection string แบบตรง (5432) อยู่ เปลี่ยนเป็นแบบ pooling (6543)
-
-**Build ล้มที่ `prisma migrate deploy`**
-→ `DATABASE_URL` ผิด หรือโปรเจกต์ Supabase ถูกหยุดเพราะไม่มีใครแตะเกิน 7 วัน
-เข้าไปกดปลุกในหน้า Supabase แล้วสั่ง deploy ใหม่
-
----
-
-## เรื่องที่ยังต้องทำก่อนใช้จริงทั้งคณะ
-
-คู่มือนี้พาขึ้นระบบให้ **ใช้งานและเดโมได้** แต่ยังไม่ใช่ระบบที่พร้อมรับผู้ใช้จริง
-ทั้งคณะ สิ่งที่ยังขาด:
-
-1. **ยังไม่ได้ต่อกับ CSMJU2030 Gateway จริง** ตอนนี้ยังไม่มีใครส่ง header
-   `X-User-Id` มาให้ ต้องคุยกับ PM เรื่องการลงทะเบียนระบบย่อยและ `callback_url`
-2. **TURN server** สำหรับคนที่โทรไม่ติด (วิธีตั้งฟรีอยู่ใน `backend/.env.example`)
-3. **ชั้นใช้ฟรีไม่มี SLA** ถ้าจะใช้จริงต่อเนื่อง ต้องคุยกับคณะเรื่องที่วางระบบ
+- **ไฟล์ของผู้ใช้เก็บในฐานข้อมูลของระบบ** (ตาราง `stored_objects`) ไฟล์ละไม่เกิน 10 MB · โควตาต่อคนผู้ดูแลปรับได้ — ขนาดฐานโตตามการใช้ ต้องตกลงเพดานรวม (ข้อ 4.3: เกิน 1 GB ต้องตกลง)
+- **แชท/สายเรียกเข้า/ห้องเสียง (socket.io)** ผ่าน path `/realtime` ที่ web rewrite ไป api — ใช้ได้ทันทีแบบ long-polling ·
+  ถ้าเปิดให้ reverse proxy ส่ง `Upgrade` ของ `/realtime` ไปที่ container api ได้ จะเป็น WebSocket (หน่วงน้อยกว่า) โดยไม่ต้องแก้โค้ด ·
+  สถานะห้อง/presence อยู่ในหน่วยความจำ จึงต้องรัน api **instance เดียว**
+- เสียง/วิดีโอคอลเป็น WebRTC แบบ P2P (เซิร์ฟเวอร์ส่งแค่ signaling) · STUN สาธารณะตั้งไว้แล้ว · TURN (`TURN_URL` ฯลฯ) ไม่บังคับ
+- ค่าลับที่ต้องตั้ง: `STORAGE_URL_SECRET` (`openssl rand -hex 32`) — ไม่ตั้งระบบยังทำงาน แต่ลิงก์ไฟล์ที่แจกไปใช้ไม่ได้หลัง api เริ่มใหม่
+- migration ไม่มี `CREATE EXTENSION` (ใช้ได้กับ role ที่ไม่ใช่ superuser)

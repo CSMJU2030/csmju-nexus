@@ -117,8 +117,8 @@ pnpm run setup         # เปิดใช้ git hooks (ต้องมีค�
 
 ## ขึ้นระบบจริง
 
-ดู [DEPLOY.md](DEPLOY.md) — ขึ้นทั้งระบบด้วยชั้นใช้ฟรีล้วน ไม่ต้องผูกบัตรเครดิต
-(Vercel + Render + Supabase) พร้อมข้อจำกัดจริงของแต่ละเจ้าที่ควรรู้ก่อนตัดสินใจ
+ดู [DEPLOY.md](DEPLOY.md) — ขึ้นบน server ของคณะผ่าน image บน ghcr.io (PM/DevOps ดูแล · standards `deployment.md`)
+และวิธีทดสอบในเครื่องแบบเดียวกับ server ด้วย `docker compose up -d --build`
 
 ## เจอปัญหาบ่อย ๆ
 
@@ -283,5 +283,4 @@ contract ใน repo เก่ากว่าโค้ด แล้วระบ�
 | เรื่อง | สถานะ |
 |---|---|
 | ย้ายไปใช้ `@csmju2030/design-system` | รอสิทธิ์ `read:packages` และคำชี้ขาดเรื่องสัญญา auth ของ DS (UI-01 จะตกจนกว่าจะย้ายเสร็จ) |
-| dependency นอก whitelist (ARC-02) | ขอข้อยกเว้น `socket.io` สาย realtime · ที่เหลือเอาออกตอนย้าย design system |
 | TURN server | ยังไม่มี — ผู้ใช้หลัง NAT ที่เจาะไม่ได้จะเชื่อมเสียงไม่ติด (หน้าจอเตือนแล้ว) |
