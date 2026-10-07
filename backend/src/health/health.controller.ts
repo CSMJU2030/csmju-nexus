@@ -38,7 +38,7 @@ export class HealthController {
       /// อ่าน `data.service` แล้วเทียบกับชื่อที่ลงทะเบียนไว้กับ Core Hub
       /// ค่าต้องตรงกับ `name:` ใน subsystem.yaml เป๊ะ ๆ (data-dictionary ข้อ 7)
       service: 'csmju-nexus',
-      standardsVersion: '1.0.0',
+      standardsVersion: '1.8.4',
       database,
       latencyMs: Date.now() - startedAt,
       checkedAt: new Date().toISOString(),
