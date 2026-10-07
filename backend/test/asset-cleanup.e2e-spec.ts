@@ -328,6 +328,9 @@ describe('คืนไฟล์เมื่อลบโพสต์ คลิป
     const url = link.body.data.downloadUrl as string;
 
     expect(url.startsWith('/api/v1/asset-blobs/')).toBe(true);
+    // Apache บน server ตอบ 404 ทุก path ที่มี %2F — path ของลิงก์ต้องไม่มีอักขระที่เข้ารหัส
+    expect(url.split('?')[0]).toMatch(/^\/api\/v1\/asset-blobs\/[a-z]+\/[A-Za-z0-9_-]+$/);
+    await http().get(url.replace(/\/([A-Za-z0-9_-]+)\?/, '/$1A?')).expect(401);
 
     const full = await http().get(url).buffer(true).parse((res, cb) => {
       const chunks: Buffer[] = [];
