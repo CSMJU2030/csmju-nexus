@@ -20,7 +20,8 @@ import type { Reel } from '@/lib/csmju/types';
 /// เพดานเดียวกับหลังบ้าน (reel.dto.ts · asset.dto.ts) — ตรวจก่อนอัปโหลด
 /// ผู้ใช้จะได้รู้ภายในวินาทีแรก ไม่ใช่รออัป 40 MB เสร็จแล้วค่อยโดนปฏิเสธ
 export const REEL_MAX_MS = 60_000;
-export const REEL_MAX_BYTES = 50 * 1024 * 1024;
+/// ไฟล์เก็บในฐานข้อมูลของระบบ ไม่เกิน 10 MB (standards deployment.md ข้อ 4.3)
+export const REEL_MAX_BYTES = 10 * 1024 * 1024;
 
 /// ชนิดที่หลังบ้านรับ (common/util/file-type.ts)
 ///

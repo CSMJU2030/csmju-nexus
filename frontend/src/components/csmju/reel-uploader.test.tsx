@@ -47,7 +47,7 @@ describe('ตรวจไฟล์ก่อนอัปโหลด', () => {
   it('ไฟล์ใหญ่เกินเพดานไม่ผ่าน และบอกขนาดจริง', () => {
     const problem = reelFileProblem({ size: REEL_MAX_BYTES + MB }, 20_000);
 
-    expect(problem).toContain('51');
+    expect(problem).toContain('11 MB');
     expect(problem).toContain('เกินเพดาน');
   });
 

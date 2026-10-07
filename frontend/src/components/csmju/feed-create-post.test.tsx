@@ -59,10 +59,10 @@ function renderModal() {
 }
 
 describe('ตรวจไฟล์', () => {
-  it('รับเฉพาะรูป/วิดีโอ ไม่เกิน 50 MB และบอกเหตุผลรายไฟล์', () => {
+  it('รับเฉพาะรูป/วิดีโอ ไม่เกิน 10 MB และบอกเหตุผลรายไฟล์', () => {
     expect(pickProblem({ name: 'a.jpg', type: 'image/jpeg', size: 10 })).toBeNull();
     expect(pickProblem({ name: 'a.pdf', type: 'application/pdf', size: 10 })).toContain('รับเฉพาะรูปภาพและวิดีโอ');
-    expect(pickProblem({ name: 'big.mp4', type: 'video/mp4', size: 60 * 1024 * 1024 })).toContain('เกินเพดาน');
+    expect(pickProblem({ name: 'big.mp4', type: 'video/mp4', size: 11 * 1024 * 1024 })).toContain('เกินเพดาน');
   });
 });
 

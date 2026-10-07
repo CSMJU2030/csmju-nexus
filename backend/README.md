@@ -220,13 +220,15 @@ controller ไม่ต้องจัดรูปเอง — คืน object
 
 ### ที่เก็บไฟล์
 
-| env | ผู้ให้บริการ | ไบต์ผ่าน backend? |
-|---|---|---|
-| ไม่ตั้ง `SUPABASE_URL` | ดิสก์ในเครื่อง (`./storage-dev`) | ผ่าน — ยอมรับได้ใน dev |
-| ตั้ง `SUPABASE_URL` | Supabase Storage | **ไม่ผ่าน** — signed URL ชี้ไป Supabase ตรง |
+ไฟล์ทุกชนิดเก็บใน**ฐานข้อมูลของระบบ** (ตาราง `stored_objects`) ทั้งในเครื่องและบน server — standards `deployment.md` ข้อ 4.3:
+ระบบไฟล์ของ container อ่านอย่างเดียว และห้ามส่งไฟล์ผู้ใช้ไปบริการภายนอก (เดิมใช้ดิสก์ตอน dev / Supabase บน production — ถอดแล้ว)
 
-production บังคับต้องมี Supabase — `StorageModule` ปฏิเสธการบูตถ้าไม่ตั้ง
-เพราะดิสก์ของ container หายทุกครั้งที่ deploy
+| เรื่อง | ค่า |
+|---|---|
+| ขนาด | ไม่เกิน **10 MB** ต่อไฟล์ (ตัดตั้งแต่ตอนรับไบต์ · ตอบ 400 `VALIDATION_ERROR`) |
+| ลิงก์ | path บนโดเมนของหน้าเว็บ `/api/v1/asset-blobs/...` ลงนาม HMAC อายุสั้น (`STORAGE_URL_SECRET`) — ผ่าน rewrite ของหน้าเว็บ ไม่มี URL เต็ม/localhost |
+| ดาวน์โหลด | `attachment` · `nosniff` · `private, no-store` · `ETag` = sha256 · รองรับ `Range` (เลื่อนคลิปได้) |
+| ไฟล์รุ่นเก่าบนดิสก์ | `pnpm --filter backend assets:import-disk` (รันซ้ำได้ · เครื่อง dev เท่านั้น) |
 
 
 ---

@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Controller,
   Get,
-  Header,
   NotFoundException,
   Param,
   Put,
@@ -12,25 +11,21 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
-import { createReadStream } from 'node:fs';
 import type { Request, Response } from 'express';
 import { Public } from '../../common/auth/public.decorator.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
-import { LocalDiskStorage } from '../../common/storage/local-disk.storage.js';
+import { parseByteRange } from '../../common/storage/byte-range.js';
+import { DatabaseStorage, MAX_OBJECT_BYTES } from '../../common/storage/database.storage.js';
 
-/// รับ-ส่งไบต์ของไฟล์ "สำหรับ dev เท่านั้น"
+/// รับ-ส่งไบต์ของไฟล์ผู้ใช้ผ่านลิงก์ที่ลงนามแล้ว (ไฟล์อยู่ในตาราง stored_objects — deployment.md ข้อ 4.3)
 ///
-/// บน staging/production ที่ตั้ง SUPABASE_URL แล้ว signed URL จะชี้ไปที่
-/// Supabase ตรง ๆ และ controller นี้จะไม่ถูกเรียกเลย — ไบต์ไม่ผ่าน backend
-///
-/// ตัด @Public() ออกไม่ได้ เพราะ signed URL ถูกเปิดโดยเบราว์เซอร์ที่ไม่ได้
-/// วิ่งผ่าน Gateway จึงไม่มี header X-User-Id ติดมา ความปลอดภัยมาจากลายเซ็น
-/// HMAC ในตัว URL แทน
+/// เบราว์เซอร์เรียกเส้นนี้ผ่าน rewrite ของหน้าเว็บ (โดเมนเดียวกัน) · ตัด @Public() ไม่ได้ เพราะ <img>/<video>
+/// และการ PUT ไฟล์ไม่ได้แนบ token — ความปลอดภัยมาจากลายเซ็น HMAC อายุสั้นที่ออกให้หลังตรวจสิทธิ์แล้วเท่านั้น
 @ApiExcludeController()
 @Controller('asset-blobs')
 export class AssetBlobsController {
   constructor(
-    private readonly disk: LocalDiskStorage,
+    private readonly storage: DatabaseStorage,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -45,98 +40,104 @@ export class AssetBlobsController {
   ): Promise<void> {
     const path = decodeURIComponent(objectPath);
 
-    if (!this.disk.verify('put', bucket, path, Number(expires), signature)) {
+    if (!this.storage.verify('put', bucket, path, Number(expires), signature)) {
       throw new UnauthorizedException('ลิงก์อัปโหลดหมดอายุหรือไม่ถูกต้อง');
     }
 
-    const body = await readBody(request);
+    const body = await readBody(request, MAX_OBJECT_BYTES);
+
+    if (body === 'too-large') {
+      throw new BadRequestException([`ไฟล์ใหญ่เกิน ${MAX_OBJECT_BYTES / 1024 / 1024} MB`]);
+    }
 
     if (body.length === 0) {
       throw new BadRequestException('ไม่มีข้อมูลไฟล์ในคำขอ');
     }
 
-    await this.disk.write(bucket, path, body);
+    await this.storage.write(bucket, path, body);
   }
 
   @Get(':bucket/:objectPath')
   @Public()
-  @Header('x-content-type-options', 'nosniff')
   async download(
     @Param('bucket') bucket: string,
     @Param('objectPath') objectPath: string,
     @Query('expires') expires: string,
     @Query('signature') signature: string,
-    @Query('download') download: string,
+    @Req() request: Request,
     @Res() response: Response,
   ): Promise<void> {
     const path = decodeURIComponent(objectPath);
 
-    if (!this.disk.verify('get', bucket, path, Number(expires), signature)) {
+    if (!this.storage.verify('get', bucket, path, Number(expires), signature)) {
       throw new UnauthorizedException('ลิงก์ดาวน์โหลดหมดอายุหรือไม่ถูกต้อง');
     }
 
-    // ส่ง content-type จาก mimeType ที่ "ยืนยันด้วย magic bytes" ตอน commit
-    // ไม่ใช่จากนามสกุลหรือจากที่ client แจ้ง
-    //
-    // เดิม handler นี้ไม่ส่ง content-type เลย ซึ่งพังคู่กับ nosniff ด้านบน:
-    // เบราว์เซอร์ไม่รู้ว่าเป็นรูปและถูกห้ามเดา ผลคือรูปสตอรี่และคลิปไม่ขึ้น
-    // โดยไม่มี error ให้เห็น
-    //
-    // objectPath ซ้ำได้แล้ว (สำเนาจากการส่งต่อชี้ไฟล์เดียวกัน) แต่ทุกแถวที่ชี้
-    // path เดียวกันมีชนิดไฟล์เดียวกันเสมอ เพราะสำเนาคัดลอกค่าจากต้นฉบับ —
-    // หยิบแถวไหนก็ได้ผลเท่ากัน และ URL นี้ถูกเซ็น HMAC มาแล้ว
+    // content-type จาก mimeType ที่ "ยืนยันด้วย magic bytes" ตอน commit ไม่ใช่จากนามสกุลหรือที่ client แจ้ง
+    // (objectPath ซ้ำได้ — สำเนาจากการส่งต่อชี้ไฟล์เดียวกันและมีชนิดเดียวกันเสมอ หยิบแถวไหนก็ได้)
     const asset = await this.prisma.asset.findFirst({
       where: { objectPath: path },
       select: { mimeType: true, fileName: true },
     });
+    const stored = asset ? await this.storage.read(bucket, path) : null;
 
-    if (!asset) {
+    if (!asset || !stored) {
       throw new NotFoundException('ไม่พบไฟล์นี้');
     }
 
-    response.setHeader('content-type', asset.mimeType);
+    const { bytes, sha256 } = stored;
+    const size = bytes.length;
+    const part = parseByteRange(request.headers.range, size);
 
-    // ไฟล์เปลี่ยนเนื้อไม่ได้หลัง commit (objectPath มี uuid ในตัว) จึงแคชได้
-    // แต่ต้องเป็น private เพราะ URL มีลายเซ็นของผู้ขอติดอยู่
-    response.setHeader('cache-control', 'private, max-age=300');
+    // deployment.md ข้อ 4.3: attachment · nosniff · private, no-store — <img>/<video>/<audio> ยังแสดงได้ตามปกติ
+    // แต่เปิดลิงก์ตรง ๆ จะดาวน์โหลดแทนการเรนเดอร์ในหน้า (กัน stored XSS จากไฟล์ผู้ใช้)
+    response.setHeader('Content-Type', asset.mimeType);
+    response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(asset.fileName)}`);
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('ETag', `"${sha256}"`);
+    response.setHeader('Accept-Ranges', 'bytes');
 
-    // ทุกอย่างที่ไม่ใช่ภาพ/วิดีโอถูกบังคับดาวน์โหลด และ nosniff กันเบราว์เซอร์
-    // เดาชนิดไฟล์เอง — สองอย่างนี้คือสิ่งที่กัน stored XSS จากไฟล์ผู้ใช้
-    if (download === '1') {
-      response.setHeader(
-        'content-disposition',
-        `attachment; filename*=UTF-8''${encodeURIComponent(asset.fileName)}`,
-      );
+    if (part === 'unsatisfiable') {
+      response.status(416).setHeader('Content-Range', `bytes */${size}`);
+      response.end();
+      return;
     }
 
-    // stream ที่ไม่มีตัวรับ 'error' ทำให้ทั้ง process ล้ม (ENOENT เมื่อแถวมีแต่
-    // ไฟล์หายจากดิสก์) — ตอบ 404 ถ้ายังไม่เริ่มส่ง ไม่งั้นตัดการเชื่อมต่อทิ้ง
-    const stream = createReadStream(this.disk.pathFor(bucket, path));
+    const { start, end } = part ?? { start: 0, end: size - 1 };
 
-    stream.on('error', () => {
-      if (response.headersSent) {
-        response.destroy();
-        return;
-      }
+    if (part) {
+      response.status(206).setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+    }
 
-      response.removeHeader('cache-control');
-      response.removeHeader('content-disposition');
-      response
-        .status(404)
-        .json({ success: false, error: { code: 'NOT_FOUND', message: 'ไม่พบไฟล์นี้' } });
-    });
-    stream.pipe(response);
+    response.setHeader('Content-Length', String(Math.max(0, end - start + 1)));
+    response.end(size === 0 ? undefined : bytes.subarray(start, end + 1));
   }
 }
 
-/// อ่าน raw body เอง เพราะ signed upload ส่งมาเป็น application/octet-stream
-/// ซึ่ง body parser ของ Nest ไม่แตะ
-function readBody(request: Request): Promise<Buffer> {
+/// ส่วนที่ยอมอ่านทิ้งเกินเพดานเพื่อตอบ 400 ให้เบราว์เซอร์เห็น (ถ้าตัดการเชื่อมต่อกลางทาง เบราว์เซอร์ได้แค่ network error)
+const DRAIN_LIMIT = 20 * 1024 * 1024;
+
+/// อ่าน raw body เอง (application/octet-stream ที่ body parser ของ Nest ไม่แตะ)
+///
+/// เกินเพดาน = หยุดเก็บไบต์ทันที (ไม่กินหน่วยความจำ) แล้วอ่านทิ้งจนจบเพื่อตอบ 400 · ส่งมาเกินมาก ๆ = ตัดการเชื่อมต่อ
+function readBody(request: Request, limit: number): Promise<Buffer | 'too-large'> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
+    let total = 0;
+    let tooLarge = Number(request.headers['content-length']) > limit;
 
-    request.on('data', (chunk: Buffer) => chunks.push(chunk));
-    request.on('end', () => resolve(Buffer.concat(chunks)));
+    request.on('data', (chunk: Buffer) => {
+      total += chunk.length;
+
+      if (total > limit) tooLarge = true;
+      if (tooLarge && total > limit + DRAIN_LIMIT) {
+        request.destroy();
+        return;
+      }
+      if (!tooLarge) chunks.push(chunk);
+    });
+    request.on('end', () => resolve(tooLarge ? 'too-large' : Buffer.concat(chunks)));
     request.on('error', reject);
   });
 }
