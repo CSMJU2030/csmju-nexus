@@ -121,6 +121,33 @@ export function pickDevice(
   );
 }
 
+/// กล้องตัวถัดไปสำหรับปุ่ม "สลับกล้องหน้า-หลัง"
+///
+/// มือถือมีชื่อบอกด้าน (front/back · หน้า/หลัง) → สลับไปด้านตรงข้าม ·
+/// ไม่มีชื่อบอกด้าน (เว็บแคมหลายตัว) → วนไปตัวถัดไป · มีกล้องเดียวได้ null
+export function nextCamera(options: readonly DeviceOption[], currentId: string | null): string | null {
+  const usable = options.filter((option) => option.deviceId !== '' && !VIRTUAL_IDS.has(option.deviceId));
+
+  if (usable.length < 2) return null;
+
+  const side = (label: string): 'front' | 'back' | null =>
+    /back|rear|environment|หลัง/i.test(label) ? 'back' : /front|user|facetime|หน้า/i.test(label) ? 'front' : null;
+  const index = Math.max(0, usable.findIndex((option) => option.deviceId === currentId));
+  const currentSide = side(usable[index]?.label ?? '');
+
+  if (currentSide) {
+    const opposite = usable.find((option) => {
+      const optionSide = side(option.label);
+
+      return optionSide !== null && optionSide !== currentSide;
+    });
+
+    if (opposite) return opposite.deviceId;
+  }
+
+  return usable[(index + 1) % usable.length]?.deviceId ?? null;
+}
+
 export interface DeviceDiff {
   added: DeviceOption[];
   removed: DeviceOption[];

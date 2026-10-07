@@ -21,6 +21,13 @@ const geistMono = localFont({
 
 // Geist ไม่มีอักขระไทย — UI ทั้งระบบเป็นภาษาไทย จึงต้องมีฟอนต์ที่ครอบคลุม
 // ไม่งั้นเบราว์เซอร์จะเลือกฟอนต์ระบบมาแทนเอง ซึ่งควบคุมหน้าตาไม่ได้
+// ตัวอักษรละตินของหัวข้อแบบเดียวกับ Core Hub (Plus Jakarta Sans · OFL)
+const jakarta = localFont({
+  src: "./fonts/PlusJakartaSans-Variable.ttf",
+  variable: "--font-jakarta",
+  weight: "200 800",
+});
+
 const notoThai = localFont({
   src: "./fonts/NotoSansThai-Variable.ttf",
   variable: "--font-noto-thai",
@@ -36,7 +43,8 @@ export const metadata: Metadata = {
     "ศูนย์กลางสังคมออนไลน์ วิดีโอสั้น ห้องคอลเสียง และแชทแลกเปลี่ยนไฟล์ประจำสาขาวิทยาการคอมพิวเตอร์",
 };
 
-/// ตั้งธีมก่อนเบราว์เซอร์วาดเฟรมแรก
+/// ตั้งธีมก่อนเบราว์เซอร์วาดเฟรมแรก — ค่าเริ่มต้นคือ **สว่าง** แบบ Core Hub (PL 8 ต.ค. 2569)
+/// มืดเฉพาะเมื่อผู้ใช้เลือก "มืด" หรือ "ตามระบบ" เอง
 ///
 /// **ต้องเป็นสคริปต์ที่รันทันทีใน <head> ไม่ใช่ใน React** — ถ้ารอให้ React
 /// ทำงานก่อน เบราว์เซอร์จะวาดหน้าสว่างไปแล้วหนึ่งเฟรม แล้วค่อยกระพริบเป็นมืด
@@ -50,7 +58,7 @@ export const metadata: Metadata = {
 const THEME_BOOTSTRAP = `
 try {
   var c = localStorage.getItem('csmju:theme');
-  var dark = c === 'dark' || (c !== 'light' &&
+  var dark = c === 'dark' || (c === 'system' &&
     window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.toggle('dark', dark);
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
@@ -64,7 +72,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       // สคริปต์ข้างล่างแก้ class ของ <html> ก่อน React จะเทียบ
       // ไม่ใส่บรรทัดนี้แล้วผู้ใช้โหมดมืดจะเจอคำเตือน hydration ทุกครั้ง
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${notoThai.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${jakarta.variable} ${notoThai.variable} h-full antialiased`}
     >
       <head>
         <script

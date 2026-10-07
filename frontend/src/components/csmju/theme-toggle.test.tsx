@@ -47,11 +47,12 @@ describe('ปุ่มสลับธีม', () => {
     }
   });
 
-  it('ค่าเริ่มต้นคือ "ตามระบบ" — ไม่บังคับทับสิ่งที่ผู้ใช้ตั้งไว้ที่เครื่อง', () => {
-    mockMatchMedia(false);
+  it('ค่าเริ่มต้นคือ "สว่าง" แบบ Core Hub แม้เครื่องตั้งโหมดมืดไว้', () => {
+    mockMatchMedia(true);
     render(<ThemeToggle />);
 
-    expect(screen.getByRole('radio', { name: 'ตามระบบ' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'สว่าง' })).toBeChecked();
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
 
   it('เลือก "มืด" แล้ว <html> ต้องได้คลาส dark จริง', async () => {

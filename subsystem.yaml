@@ -119,10 +119,10 @@ api:
 ui:
   design_system_version: null # ยังไม่ได้ติดตั้ง — ดูเหตุผลด้านบน
   design_system_status: blocked_on_pat_and_pm_ruling
-  theme: light+dark # globals.css มีครบทั้งสองโหมด
-  # เบี่ยงจากสีองค์กร rgb(0 76 153) ตามคำสั่ง PL 29 ก.ย. 2569 — หน้าตาแบบ Instagram บนเว็บ
-  # (พื้นมืด rgb(12 16 20) · ปุ่มหลัก rgb(74 93 249)) · ต้องขอส่วนกลางยืนยันก่อนขึ้นระบบจริง
-  theme_deviation: instagram_like_by_pl_decision
+  theme: light+dark # globals.css มีครบทั้งสองโหมด · ค่าเริ่มต้นสว่าง
+  # สีตาม Core Hub (PM ขอ 8 ต.ค. 2569): พื้น rgb(248 249 250) · น้ำเงิน rgb(33 84 217) ·
+  # แถบซ้ายไล่น้ำเงินเข้ม · โลโก้สาขาชุดเดียวกับ Core Hub · โครงหน้า (feed/reels/แชท) ยังเป็นแบบ Instagram
+  theme_deviation: core_hub_palette_instagram_layout
   tailwind: "4" # preset ของ design system เป็น v3 — ต้องยืนยันก่อนย้าย
   app_shell: false # วาดแถบซ้ายแบบ Instagram เอง (DS-01) เพราะไม่มี <CsmjuAppShell>
 

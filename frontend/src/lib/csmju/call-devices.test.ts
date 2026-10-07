@@ -5,6 +5,7 @@ import {
   deviceNotice,
   diffDevices,
   groupDevices,
+  nextCamera,
   permissionGranted,
   pickDevice,
   videoConstraints,
@@ -136,5 +137,22 @@ describe('ข้อกำหนดของ getUserMedia', () => {
   it('ข้อความแจ้งเตือนตรงกับ Instagram', () => {
     expect(deviceNotice('connected', 'audioinput', 'Laptop Mic')).toBe('เชื่อมต่อไมโครโฟนแล้ว: Laptop Mic');
     expect(deviceNotice('connected', 'audiooutput', 'Speakers')).toBe('เชื่อมต่อลำโพงแล้ว: Speakers');
+  });
+});
+
+describe('nextCamera (ปุ่มสลับกล้องหน้า-หลัง)', () => {
+  const cam = (deviceId: string, label: string) => ({ deviceId, kind: 'videoinput' as const, label, groupId: deviceId });
+
+  it('มือถือ: กล้องหน้า → กล้องหลัง และกลับ (ข้ามกล้องหลังตัวที่สองไม่วนมั่ว)', () => {
+    const phone = [cam('f', 'camera2 1, facing front'), cam('b', 'camera2 0, facing back'), cam('w', 'camera2 2, facing back')];
+
+    expect(nextCamera(phone, 'f')).toBe('b');
+    expect(nextCamera(phone, 'w')).toBe('f');
+  });
+
+  it('เว็บแคมไม่มีชื่อบอกด้าน → วนตัวถัดไป · มีกล้องเดียว → null', () => {
+    expect(nextCamera([cam('a', 'HD Webcam'), cam('b', 'USB Camera')], 'b')).toBe('a');
+    expect(nextCamera([cam('a', 'HD Webcam')], 'a')).toBeNull();
+    expect(nextCamera([cam('', ''), cam('a', 'HD Webcam')], null)).toBeNull();
   });
 });

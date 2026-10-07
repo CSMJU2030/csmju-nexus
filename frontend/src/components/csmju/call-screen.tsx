@@ -10,6 +10,7 @@ import {
   MonitorUp,
   PhoneOff,
   Settings,
+  SwitchCamera,
   Video,
   VideoOff,
   VolumeX,
@@ -65,6 +66,8 @@ export interface CallScreenProps {
   trapFocus: boolean;
   onToggleMute: () => void;
   onToggleCamera: () => void;
+  /// สลับกล้องหน้า-หลัง — ไม่ส่งมา = เครื่องมีกล้องเดียว ไม่มีปุ่ม
+  onFlipCamera?: () => void;
   onToggleScreen: () => void;
   onHangUp: () => void;
   onSettings: () => void;
@@ -208,6 +211,11 @@ export function CallScreen(props: CallScreenProps) {
             <VideoOff aria-hidden className="size-5" />
           )}
         </RoundButton>
+        {cameraStream && props.onFlipCamera && (
+          <RoundButton label="สลับกล้องหน้า-หลัง" tone="plain" disabled={cameraBusy} onClick={props.onFlipCamera}>
+            <SwitchCamera aria-hidden className="size-5" />
+          </RoundButton>
+        )}
         <RoundButton
           label={muted ? 'เปิดไมค์' : 'ปิดไมค์'}
           tone={muted ? 'on' : 'plain'}

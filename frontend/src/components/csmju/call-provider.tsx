@@ -38,6 +38,7 @@ import {
   labelOf,
   loadSelection,
   permissionGranted,
+  nextCamera,
   pickDevice,
   saveSelection,
   supportsSinkId,
@@ -65,6 +66,11 @@ import type {
   VoiceOccupant,
   VoiceOccupants,
 } from '@/lib/csmju/types';
+
+/// กล้องที่ใช้อยู่จริงในสาย (ชื่ออุปกรณ์จาก track) — ยังไม่ได้เลือกเองก็ยังรู้ว่าเป็นตัวไหน
+function activeCameraId(stream: MediaStream | null, fallback: string | null): string | null {
+  return stream?.getVideoTracks()[0]?.getSettings?.().deviceId ?? fallback;
+}
 
 /// ตัวจัดการสายที่อยู่เหนือทุกหน้าจอ
 ///
@@ -687,6 +693,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     },
     [switchMic, switchCamera],
   );
+
+  /// ปุ่มสลับกล้องหน้า-หลังระหว่างสาย — เลือกกล้องอีกด้านแล้วจำไว้เหมือนเลือกจากการตั้งค่า
+  const flipCamera = useCallback(() => {
+    const next = nextCamera(devices.videoinput, activeCameraId(cameraRef.current, selectionRef.current.videoinput));
+
+    if (next) selectDevice('videoinput', next);
+  }, [devices.videoinput, selectDevice]);
 
   const requestCamera = useCallback(async () => {
     try {
@@ -1663,6 +1676,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           trapFocus={trapFocus}
           onToggleMute={toggleMute}
           onToggleCamera={toggleCamera}
+          onFlipCamera={nextCamera(devices.videoinput, activeCameraId(cameraStream, selection.videoinput)) ? flipCamera : undefined}
           onToggleScreen={() => void toggleScreen()}
           onHangUp={() => void hangUp()}
           onSettings={() => setSettingsOpen(true)}

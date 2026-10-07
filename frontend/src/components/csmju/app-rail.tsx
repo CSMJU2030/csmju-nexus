@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   Activity,
   Bookmark,
+  Camera,
   CalendarDays,
   ChevronLeft,
   Clapperboard,
@@ -66,6 +67,7 @@ const TALK: RailLink[] = [
 /// ปุ่ม + เปิดเมนูว่าจะสร้างอะไร — ทุกรายการเปิดกล่องสร้างให้ทันทีด้วย ?create=
 export const CREATE_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/feed?create=post', label: 'โพสต์', icon: SquarePen },
+  { href: '/feed?create=camera', label: 'ถ่ายรูป', icon: Camera },
   { href: '/reels?create=1', label: 'คลิปสั้น', icon: Clapperboard },
   { href: '/chat?create=1', label: 'ห้อง', icon: Users },
 ];
@@ -193,10 +195,12 @@ export function AppRail() {
         className="csmju-rail absolute inset-y-0 left-0 flex flex-col border-r border-sidebar-border bg-sidebar px-3"
       >
         <Link href="/feed" aria-label="CS Nexus หน้าหลัก" className="csmju-rail-item csmju-rail-brand">
-          <span className="csmju-rail-icon csmju-brand grid size-7 place-items-center rounded-[0.55rem] text-[0.65rem] font-extrabold tracking-tight">
-            CS
+          {/* โลโก้สาขาในวงกลมขาวแบบหัวแถบของ Core Hub */}
+          <span className="csmju-rail-icon csmju-logo-badge size-9 p-0.5">
+            {/* eslint-disable-next-line @next/next/no-img-element -- ไฟล์เล็กใน public ไม่ต้องผ่านตัวย่อรูป */}
+            <img src="/csmju-mark.png" alt="" width={32} height={32} className="size-8 rounded-full object-contain" />
           </span>
-          <span className="csmju-rail-label font-[Segoe_Script,Brush_Script_MT,cursive] text-2xl leading-none">
+          <span className="csmju-rail-label font-heading text-xl font-extrabold leading-none tracking-tight">
             CS Nexus
           </span>
         </Link>
@@ -275,7 +279,7 @@ export function AppRail() {
           >
             <span
               className={`csmju-rail-icon grid size-6 place-items-center rounded-full ${
-                onProfile ? 'ring-2 ring-foreground ring-offset-1 ring-offset-sidebar' : ''
+                onProfile ? 'ring-2 ring-white ring-offset-1 ring-offset-sidebar' : ''
               }`}
             >
               <Avatar coreUserId={me.id} size={24} showOnline={false} />
