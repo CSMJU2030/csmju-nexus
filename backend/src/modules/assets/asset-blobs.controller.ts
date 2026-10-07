@@ -15,7 +15,7 @@ import type { Request, Response } from 'express';
 import { Public } from '../../common/auth/public.decorator.js';
 import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { parseByteRange } from '../../common/storage/byte-range.js';
-import { DatabaseStorage, MAX_OBJECT_BYTES } from '../../common/storage/database.storage.js';
+import { DatabaseStorage, MAX_OBJECT_BYTES, decodeObjectPath } from '../../common/storage/database.storage.js';
 
 /// รับ-ส่งไบต์ของไฟล์ผู้ใช้ผ่านลิงก์ที่ลงนามแล้ว (ไฟล์อยู่ในตาราง stored_objects — deployment.md ข้อ 4.3)
 ///
@@ -38,9 +38,9 @@ export class AssetBlobsController {
     @Query('signature') signature: string,
     @Req() request: Request,
   ): Promise<void> {
-    const path = decodeURIComponent(objectPath);
+    const path = decodeObjectPath(objectPath);
 
-    if (!this.storage.verify('put', bucket, path, Number(expires), signature)) {
+    if (path === null || !this.storage.verify('put', bucket, path, Number(expires), signature)) {
       throw new UnauthorizedException('ลิงก์อัปโหลดหมดอายุหรือไม่ถูกต้อง');
     }
 
@@ -67,9 +67,9 @@ export class AssetBlobsController {
     @Req() request: Request,
     @Res() response: Response,
   ): Promise<void> {
-    const path = decodeURIComponent(objectPath);
+    const path = decodeObjectPath(objectPath);
 
-    if (!this.storage.verify('get', bucket, path, Number(expires), signature)) {
+    if (path === null || !this.storage.verify('get', bucket, path, Number(expires), signature)) {
       throw new UnauthorizedException('ลิงก์ดาวน์โหลดหมดอายุหรือไม่ถูกต้อง');
     }
 

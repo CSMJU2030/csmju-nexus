@@ -131,6 +131,19 @@ export class DatabaseStorage implements StorageProvider {
   }
 }
 
+/// objectPath มี `/` (`<coreUserId>/<uuid>.<ext>`) — ถ้าเข้ารหัสเป็น `%2F` Apache บน server ตอบ 404 เองก่อนถึง api
+/// (`AllowEncodedSlashes Off` เป็นค่าตั้งต้น · ในเครื่องไม่มี Apache จึงไม่เจอ) → ส่งเป็น base64url ช่องเดียวที่ไม่มีอักขระพิเศษ
+export function encodeObjectPath(objectPath: string): string {
+  return Buffer.from(objectPath, 'utf8').toString('base64url');
+}
+
+/// คืน `null` เมื่อไม่ใช่ base64url ที่ถอดแล้วได้ path ที่ถูกรูป (ลิงก์ปลอม → ตอบ 401 แบบเดียวกับลายเซ็นผิด)
+export function decodeObjectPath(segment: string): string | null {
+  if (!/^[A-Za-z0-9_-]{1,1024}$/.test(segment)) return null;
+  const path = Buffer.from(segment, 'base64url').toString('utf8');
+  return encodeObjectPath(path) === segment ? path : null;
+}
+
 function blobPath(bucket: string, objectPath: string): string {
-  return `/api/v1/asset-blobs/${encodeURIComponent(bucket)}/${encodeURIComponent(objectPath)}`;
+  return `/api/v1/asset-blobs/${encodeURIComponent(bucket)}/${encodeObjectPath(objectPath)}`;
 }
