@@ -7,11 +7,11 @@
 /// ถ้าใช้ ภาพที่ได้บน iPhone จะไม่มีฟิลเตอร์ทั้งที่พรีวิวมี
 
 export type FilterStep =
-  | { op: 'brightness'; amount: number }
-  | { op: 'contrast'; amount: number }
-  | { op: 'saturate'; amount: number }
-  | { op: 'grayscale'; amount: number }
-  | { op: 'sepia'; amount: number }
+  | { op: 'brightness'; value: number }
+  | { op: 'contrast'; value: number }
+  | { op: 'saturate'; value: number }
+  | { op: 'grayscale'; value: number }
+  | { op: 'sepia'; value: number }
   | { op: 'hue-rotate'; degrees: number };
 
 export interface CameraFilter {
@@ -26,27 +26,27 @@ export const CAMERA_FILTERS: readonly CameraFilter[] = [
     id: 'vivid',
     label: 'สดใส',
     steps: [
-      { op: 'contrast', amount: 1.2 },
-      { op: 'saturate', amount: 1.35 },
+      { op: 'contrast', value: 1.2 },
+      { op: 'saturate', value: 1.35 },
     ],
   },
   {
     id: 'soft',
     label: 'นุ่มนวล',
     steps: [
-      { op: 'contrast', amount: 0.9 },
-      { op: 'brightness', amount: 1.1 },
-      { op: 'saturate', amount: 1.1 },
+      { op: 'contrast', value: 0.9 },
+      { op: 'brightness', value: 1.1 },
+      { op: 'saturate', value: 1.1 },
     ],
   },
   {
     id: 'warm',
     label: 'อบอุ่น',
     steps: [
-      { op: 'sepia', amount: 0.22 },
-      { op: 'brightness', amount: 1.1 },
-      { op: 'contrast', amount: 0.85 },
-      { op: 'saturate', amount: 1.2 },
+      { op: 'sepia', value: 0.22 },
+      { op: 'brightness', value: 1.1 },
+      { op: 'contrast', value: 0.85 },
+      { op: 'saturate', value: 1.2 },
     ],
   },
   {
@@ -54,19 +54,19 @@ export const CAMERA_FILTERS: readonly CameraFilter[] = [
     label: 'เย็นตา',
     steps: [
       { op: 'hue-rotate', degrees: -12 },
-      { op: 'contrast', amount: 1.05 },
-      { op: 'saturate', amount: 0.9 },
-      { op: 'brightness', amount: 1.05 },
+      { op: 'contrast', value: 1.05 },
+      { op: 'saturate', value: 0.9 },
+      { op: 'brightness', value: 1.05 },
     ],
   },
   {
     id: 'film',
     label: 'ฟิล์ม',
     steps: [
-      { op: 'sepia', amount: 0.25 },
-      { op: 'contrast', amount: 0.95 },
-      { op: 'brightness', amount: 1.05 },
-      { op: 'saturate', amount: 0.9 },
+      { op: 'sepia', value: 0.25 },
+      { op: 'contrast', value: 0.95 },
+      { op: 'brightness', value: 1.05 },
+      { op: 'saturate', value: 0.9 },
     ],
   },
   {
@@ -74,46 +74,46 @@ export const CAMERA_FILTERS: readonly CameraFilter[] = [
     label: 'พาสเทล',
     steps: [
       { op: 'hue-rotate', degrees: -20 },
-      { op: 'contrast', amount: 0.9 },
-      { op: 'saturate', amount: 0.85 },
-      { op: 'brightness', amount: 1.2 },
+      { op: 'contrast', value: 0.9 },
+      { op: 'saturate', value: 0.85 },
+      { op: 'brightness', value: 1.2 },
     ],
   },
   {
     id: 'sharp',
     label: 'คมชัด',
     steps: [
-      { op: 'contrast', amount: 1.15 },
-      { op: 'saturate', amount: 1.8 },
-      { op: 'sepia', amount: 0.12 },
+      { op: 'contrast', value: 1.15 },
+      { op: 'saturate', value: 1.8 },
+      { op: 'sepia', value: 0.12 },
     ],
   },
   {
     id: 'mono',
     label: 'ขาวดำ',
     steps: [
-      { op: 'grayscale', amount: 1 },
-      { op: 'contrast', amount: 1.1 },
-      { op: 'brightness', amount: 1.1 },
+      { op: 'grayscale', value: 1 },
+      { op: 'contrast', value: 1.1 },
+      { op: 'brightness', value: 1.1 },
     ],
   },
   {
     id: 'classic',
     label: 'คลาสสิก',
     steps: [
-      { op: 'sepia', amount: 0.3 },
-      { op: 'contrast', amount: 1.1 },
-      { op: 'brightness', amount: 1.1 },
-      { op: 'grayscale', amount: 1 },
+      { op: 'sepia', value: 0.3 },
+      { op: 'contrast', value: 1.1 },
+      { op: 'brightness', value: 1.1 },
+      { op: 'grayscale', value: 1 },
     ],
   },
   {
     id: 'faded',
     label: 'ซีดจาง',
     steps: [
-      { op: 'grayscale', amount: 0.5 },
-      { op: 'contrast', amount: 0.95 },
-      { op: 'brightness', amount: 0.9 },
+      { op: 'grayscale', value: 0.5 },
+      { op: 'contrast', value: 0.95 },
+      { op: 'brightness', value: 0.9 },
     ],
   },
 ];
@@ -123,7 +123,7 @@ export function filterCss(filter: CameraFilter): string {
   if (filter.steps.length === 0) return 'none';
 
   return filter.steps
-    .map((step) => (step.op === 'hue-rotate' ? `hue-rotate(${step.degrees}deg)` : `${step.op}(${step.amount})`))
+    .map((step) => (step.op === 'hue-rotate' ? `hue-rotate(${step.degrees}deg)` : `${step.op}(${step.value})`))
     .join(' ');
 }
 
@@ -133,7 +133,7 @@ type Matrix = readonly [number, number, number, number, number, number, number, 
 function colorMatrix(step: FilterStep): Matrix | null {
   switch (step.op) {
     case 'saturate': {
-      const s = step.amount;
+      const s = step.value;
 
       return [
         0.213 + 0.787 * s, 0.715 - 0.715 * s, 0.072 - 0.072 * s,
@@ -142,7 +142,7 @@ function colorMatrix(step: FilterStep): Matrix | null {
       ];
     }
     case 'grayscale': {
-      const g = 1 - Math.min(1, Math.max(0, step.amount));
+      const g = 1 - Math.min(1, Math.max(0, step.value));
 
       return [
         0.2126 + 0.7874 * g, 0.7152 - 0.7152 * g, 0.0722 - 0.0722 * g,
@@ -151,7 +151,7 @@ function colorMatrix(step: FilterStep): Matrix | null {
       ];
     }
     case 'sepia': {
-      const p = 1 - Math.min(1, Math.max(0, step.amount));
+      const p = 1 - Math.min(1, Math.max(0, step.value));
 
       return [
         0.393 + 0.607 * p, 0.769 - 0.769 * p, 0.189 - 0.189 * p,
@@ -192,16 +192,16 @@ export function applyFilter(data: Uint8ClampedArray, filter: CameraFilter): void
         data[i + 1] = matrix[3] * r + matrix[4] * g + matrix[5] * b;
         data[i + 2] = matrix[6] * r + matrix[7] * g + matrix[8] * b;
       } else if (step.op === 'brightness') {
-        data[i] = r * step.amount;
-        data[i + 1] = g * step.amount;
-        data[i + 2] = b * step.amount;
+        data[i] = r * step.value;
+        data[i + 1] = g * step.value;
+        data[i + 2] = b * step.value;
       } else if (step.op === 'contrast') {
-        // feComponentTransfer linear: slope = amount · intercept = 0.5 − 0.5·amount (หน่วย 0–1)
-        const intercept = 127.5 * (1 - step.amount);
+        // feComponentTransfer linear: slope = value · intercept = 0.5 − 0.5·value (หน่วย 0–1)
+        const intercept = 127.5 * (1 - step.value);
 
-        data[i] = r * step.amount + intercept;
-        data[i + 1] = g * step.amount + intercept;
-        data[i + 2] = b * step.amount + intercept;
+        data[i] = r * step.value + intercept;
+        data[i + 1] = g * step.value + intercept;
+        data[i + 2] = b * step.value + intercept;
       }
     }
   }

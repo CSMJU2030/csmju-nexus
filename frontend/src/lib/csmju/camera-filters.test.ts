@@ -47,7 +47,7 @@ describe('camera-filters', () => {
   it('contrast รอบจุดกลาง 127.5 แบบ CSS', () => {
     const pixels = new Uint8ClampedArray([0, 255, 128, 255]);
 
-    applyFilter(pixels, { id: 't', label: 't', steps: [{ op: 'contrast', amount: 0.5 }] });
+    applyFilter(pixels, { id: 't', label: 't', steps: [{ op: 'contrast', value: 0.5 }] });
 
     expect([...pixels]).toEqual([64, 191, 128, 255]);
   });
