@@ -16,6 +16,7 @@ import { CoreHubTokenVerifier } from '../../auth/core-hub-token.verifier.js';
 import { extractToken } from '../../auth/core-hub-jwt.guard.js';
 import { RealtimeBus } from '../../common/realtime/realtime-bus.js';
 import {
+  REALTIME_PATH,
   SOCKET_NAMESPACE,
   userRoom,
   type JoinResult,
@@ -62,6 +63,13 @@ interface SocketState {
 /// ถ้าสเกลเป็นหลาย instance ต้องเพิ่ม Redis adapter ของ Socket.io
 @WebSocketGateway({
   namespace: SOCKET_NAMESPACE,
+  // เบราว์เซอร์ต่อผ่าน rewrite ของหน้าเว็บที่ path นี้ (โดเมนเดียวกัน) — บน server api ไม่เปิดออกนอก
+  // long-polling ผ่าน HTTP ใช้ได้เสมอ · WebSocket ใช้ได้เมื่อ reverse proxy ส่ง Upgrade ของ path นี้มาที่ api
+  path: REALTIME_PATH,
+  addTrailingSlash: false,
+  // ต่ำกว่า timeout ของ proxy ใน Next (30 วินาที) ไม่ให้ long-polling ถูกตัดกลางทาง
+  pingInterval: 20_000,
+  pingTimeout: 20_000,
   cors: { origin: process.env.CORS_ORIGIN?.split(',') ?? true },
 })
 export class EventsGateway

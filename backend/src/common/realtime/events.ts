@@ -7,6 +7,10 @@
 
 export const SOCKET_NAMESPACE = '/realtime';
 
+/// path ของ engine.io — หน้าเว็บ rewrite `/realtime` ไปที่ api (frontend/next.config.ts)
+/// ไม่มี / ปิดท้าย เพราะ Next.js redirect path ที่ลงท้ายด้วย / ก่อนถึง rewrite
+export const REALTIME_PATH = '/realtime';
+
 /// ห้องส่วนตัวของผู้ใช้หนึ่งคน — socket ทุกเครื่องของเขาเข้าห้องนี้ตอนต่อ
 ///
 /// ใช้ส่งของที่ "ถึงคน" ไม่ใช่ "ถึงห้อง" เช่นการแจ้งเตือน โดยไม่ต้องวนหา
