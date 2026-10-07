@@ -1,9 +1,13 @@
 'use client';
 
 import { createPortal } from 'react-dom';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import {
+  ChevronLeft,
+  ChevronRight,
+  Images,
   Maximize,
+  Minimize2,
   Mic,
   MicOff,
   Minimize,
@@ -24,7 +28,9 @@ import {
   RoundButton,
   VideoView,
 } from '@/components/csmju/call-ui';
+import { CallDock } from '@/components/csmju/call-dock';
 import { CallSharePreview } from '@/components/csmju/call-share-preview';
+import { canShareImages, canShareScreen } from '@/lib/csmju/image-share';
 import type { SharePreviewState } from '@/lib/csmju/call-share';
 import { cn } from '@/lib/utils';
 
@@ -69,6 +75,15 @@ export interface CallScreenProps {
   /// สลับกล้องหน้า-หลัง — ไม่ส่งมา = เครื่องมีกล้องเดียว ไม่มีปุ่ม
   onFlipCamera?: () => void;
   onToggleScreen: () => void;
+  /// มือถือที่แชร์จอสดไม่ได้: แชร์ภาพที่เลือกเป็นสไลด์แทน
+  onShareImages: (files: File[]) => void;
+  /// กำลังแชร์ภาพ — สไลด์ที่แสดงอยู่ (null = ไม่ได้แชร์ภาพ)
+  slides: { index: number; total: number } | null;
+  onSlide: (delta: number) => void;
+  /// ย่อเป็นกล่องลอยที่ลากย้ายได้ ใช้เว็บต่อได้ระหว่างโทร
+  minimized: boolean;
+  onMinimize: () => void;
+  onRestore: () => void;
   onHangUp: () => void;
   onSettings: () => void;
   onFullscreen: () => void;
@@ -100,9 +115,34 @@ export function CallScreen(props: CallScreenProps) {
 
   // วางสายต้องทำด้วยปุ่มหรือ alt+e เท่านั้น — Escape ไม่วางสาย
   // (ผู้ใช้กด Esc เพื่อออกจากเต็มจอบ่อยมาก ถ้าวางสายด้วยจะหลุดสายโดยไม่ตั้งใจ)
-  const rootRef = useModalFocus<HTMLDivElement>(trapFocus);
+  // Esc = ย่อเป็นกล่องลอย (ไม่วางสาย)
+  const rootRef = useModalFocus<HTMLDivElement>(trapFocus, props.onMinimize);
+  const imagesRef = useRef<HTMLInputElement | null>(null);
   const joined = peers.filter((peer) => peer.status === 'joined');
   const [first] = members;
+  // มือถือไม่มี API แชร์จอสด → ปุ่มเดียวกันเปลี่ยนเป็น "แชร์ภาพ" (แคปหน้าจอ/รูป)
+  const liveScreen = canShareScreen();
+  const imageFallback = !liveScreen && canShareImages();
+
+  if (props.minimized) {
+    return createPortal(
+      <CallDock
+        meCoreUserId={meCoreUserId}
+        members={members}
+        group={group}
+        phase={phase}
+        peers={peers}
+        muted={muted}
+        cameraStream={cameraStream}
+        cameraBusy={cameraBusy}
+        onToggleMute={props.onToggleMute}
+        onToggleCamera={props.onToggleCamera}
+        onHangUp={props.onHangUp}
+        onRestore={props.onRestore}
+      />,
+      document.body,
+    );
+  }
 
   return createPortal(
     <div
@@ -144,6 +184,9 @@ export function CallScreen(props: CallScreenProps) {
 
         <span className="flex-1" />
 
+        <RoundButton label="ย่อเป็นกล่องลอย (ใช้เว็บต่อระหว่างโทร)" size="sm" onClick={props.onMinimize}>
+          <Minimize2 aria-hidden className="size-5" />
+        </RoundButton>
         <RoundButton label="การตั้งค่า" size="sm" onClick={props.onSettings}>
           <Settings aria-hidden className="size-5" />
         </RoundButton>
@@ -189,16 +232,69 @@ export function CallScreen(props: CallScreenProps) {
         onExpand={props.onShareExpand}
       />
 
+      {/* แชร์ภาพเป็นสไลด์ (มือถือ) — เลื่อนหน้า · เพิ่มภาพ */}
+      {props.slides && (
+        <div className="absolute inset-x-0 bottom-24 z-10 flex justify-center">
+          <div className="flex items-center gap-2 rounded-full bg-neutral-800/95 px-2 py-1 text-sm shadow-lg">
+            <RoundButton label="ภาพก่อนหน้า" size="sm" disabled={props.slides.index === 0} onClick={() => props.onSlide(-1)}>
+              <ChevronLeft aria-hidden className="size-5" />
+            </RoundButton>
+            <span className="min-w-14 text-center tabular-nums" aria-live="polite">
+              {props.slides.index + 1} / {props.slides.total}
+            </span>
+            <RoundButton
+              label="ภาพถัดไป"
+              size="sm"
+              disabled={props.slides.index >= props.slides.total - 1}
+              onClick={() => props.onSlide(1)}
+            >
+              <ChevronRight aria-hidden className="size-5" />
+            </RoundButton>
+          </div>
+        </div>
+      )}
+
+      {imageFallback && (
+        <input
+          ref={imagesRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+
+            event.target.value = '';
+            if (files.length) props.onShareImages(files);
+          }}
+        />
+      )}
+
       {/* ปุ่มควบคุม */}
       <div className="absolute inset-x-0 bottom-6 z-10 flex justify-center gap-3">
-        <RoundButton
-          label={presenting ? 'หยุดแชร์หน้าจอ' : 'แชร์หน้าจอ'}
-          tone={presenting ? 'on' : 'plain'}
-          pressed={presenting}
-          onClick={props.onToggleScreen}
-        >
-          <MonitorUp aria-hidden className="size-5" />
-        </RoundButton>
+        {liveScreen ? (
+          <RoundButton
+            label={presenting ? 'หยุดแชร์หน้าจอ' : 'แชร์หน้าจอ'}
+            tone={presenting ? 'on' : 'plain'}
+            pressed={presenting}
+            onClick={props.onToggleScreen}
+          >
+            <MonitorUp aria-hidden className="size-5" />
+          </RoundButton>
+        ) : imageFallback ? (
+          <RoundButton
+            label={
+              presenting
+                ? 'หยุดแชร์ภาพ'
+                : 'แชร์ภาพหน้าจอ — มือถือแชร์จอสดไม่ได้ แคปหน้าจอแล้วเลือกมาแชร์เป็นสไลด์'
+            }
+            tone={presenting ? 'on' : 'plain'}
+            pressed={presenting}
+            onClick={() => (presenting ? props.onToggleScreen() : imagesRef.current?.click())}
+          >
+            <Images aria-hidden className="size-5" />
+          </RoundButton>
+        ) : null}
         <RoundButton
           label={cameraStream ? 'ปิดกล้อง' : 'เปิดกล้อง'}
           tone={cameraStream ? 'plain' : 'on'}

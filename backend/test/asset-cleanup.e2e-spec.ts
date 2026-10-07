@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { AppModule } from '../src/app.module.js';
 import { configureApp, PREFIX_EXCLUDE } from '../src/bootstrap.js';
 import { PrismaService } from '../src/common/prisma/prisma.service.js';
+import { RealtimeBus, type SyncPush } from '../src/common/realtime/realtime-bus.js';
 import {
   STORAGE_PROVIDER,
   type StorageProvider,
@@ -129,7 +130,9 @@ describe('คืนไฟล์เมื่อลบโพสต์ คลิป
       .expect(404);
   }
 
-  it('ลบโพสต์ → รูปทุกรูปถูกลบจากที่เก็บ · โควตาคืน · รีแอ็กชันของโพสต์หายตาม', async () => {
+  it('ลบโพสต์ → รูปทุกรูปถูกลบจากที่เก็บ · โควตาคืน · รีแอ็กชันของโพสต์หายตาม · ทุกเครื่องได้สัญญาณ sync สด', async () => {
+    const pushes: SyncPush[] = [];
+    const listening = app.get(RealtimeBus).syncEvents.subscribe((push) => pushes.push(push));
     const before = await used(author).catch(() => 0n);
     const first = await upload(author, 'IMAGE');
     const second = await upload(author, 'IMAGE');
@@ -154,6 +157,14 @@ describe('คืนไฟล์เมื่อลบโพสต์ คลิป
     await expectReleased(second);
     expect(await used(author)).toBe(before);
     expect(await prisma.reaction.count({ where: { targetKind: 'POST', targetId: post.body.data.id } })).toBe(0);
+
+    // สร้าง+ลบโพสต์ = หัวข้อสาธารณะ ถึงทุกคน (ไม่มีเนื้อหา) · ห้ามมีสัญญาณจากการอัปโหลดไฟล์
+    listening.unsubscribe();
+    expect(pushes.filter((push) => push.topic === 'posts')).toEqual([
+      { topic: 'posts', coreUserId: null },
+      { topic: 'posts', coreUserId: null },
+    ]);
+    expect(pushes.every((push) => ['posts', 'reactions'].includes(push.topic))).toBe(true);
   });
 
   it('ลบคลิป → วิดีโอถูกลบจากที่เก็บ · โควตาคืน · รีแอ็กชันหายตาม', async () => {

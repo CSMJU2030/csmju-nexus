@@ -1,5 +1,6 @@
 import { Global, Injectable, Module } from '@nestjs/common';
 import { Subject } from 'rxjs';
+import type { SyncTopic } from './events.js';
 
 /// สะพานทางเดียวระหว่างชั้นข้อมูลกับชั้น WebSocket
 ///
@@ -21,6 +22,10 @@ export class RealtimeBus {
   private readonly userStream = new Subject<NotificationPush>();
   private readonly roomStream = new Subject<RoomEvent>();
   private readonly evictStream = new Subject<RoomEviction>();
+  private readonly syncStream = new Subject<SyncPush>();
+
+  /// "หัวข้อนี้เปลี่ยน" ให้หน้าเว็บดึงใหม่ — ถึงทุกคน (`coreUserId: null`) หรือเฉพาะเครื่องของคนเดียว
+  readonly syncEvents = this.syncStream.asObservable();
 
   /// เหตุการณ์ที่ส่งถึงผู้ใช้คนหนึ่ง ทุกอุปกรณ์ที่เขาเปิดอยู่
   readonly userEvents = this.userStream.asObservable();
@@ -47,6 +52,16 @@ export class RealtimeBus {
   evictFromRoom(eviction: RoomEviction): void {
     this.evictStream.next(eviction);
   }
+
+  pushSync(push: SyncPush): void {
+    this.syncStream.next(push);
+  }
+}
+
+export interface SyncPush {
+  topic: SyncTopic;
+  /// null = ทุกคนที่ต่ออยู่ · มีค่า = เฉพาะทุกเครื่องของคนนี้ (ข้อมูลส่วนตัว เช่นที่บันทึกไว้)
+  coreUserId: string | null;
 }
 
 export interface RoomEviction {
