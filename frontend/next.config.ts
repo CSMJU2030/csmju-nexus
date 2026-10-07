@@ -18,6 +18,11 @@ const WORKSPACE_ROOT = join(__dirname, "..");
 const BACKEND_URL = (process.env.BACKEND_URL ?? "http://127.0.0.1:4222").replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
+  /// image ของ web (frontend/Dockerfile) copy `.next/standalone` — deployment.md ข้อ 3 · DEP-04
+  output: "standalone",
+  /// standalone ต้องตามรอยไฟล์จากรากของ pnpm workspace ไม่ใช่แค่ frontend/
+  outputFileTracingRoot: WORKSPACE_ROOT,
+
   /// ปุ่ม "N" ของ Next dev tools (มีเฉพาะตอน next dev) ไปไว้มุมขวาบน
   /// ค่าเริ่มต้นคือซ้ายล่าง ซึ่งทับไอคอนล่างสุดของแถบซ้าย ส่วนขวาล่างเป็นที่ของปุ่มข้อความ
   devIndicators: { position: 'top-right' },

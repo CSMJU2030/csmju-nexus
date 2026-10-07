@@ -21,6 +21,7 @@
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "openapi": "nest build && node dist/scripts/write-openapi.js",
+    "assets:import-disk": "nest build && node dist/scripts/import-disk-assets.js",
     "generate:openapi": "pnpm run openapi",
     "openapi:check": "node dist/scripts/check-openapi.js",
     "typecheck": "tsc --noEmit",
@@ -43,6 +44,7 @@
     "dotenv": "^17.4.2",
     "jose": "^5.10.0",
     "pg": "^8.23.0",
+    "prisma": "7.9.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3"
@@ -59,7 +61,6 @@
     "eslint": "^9.39.5",
     "globals": "^17.13.0",
     "prettier": "^3.4.2",
-    "prisma": "7.9.1",
     "supertest": "^7.0.0",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.71.0",
