@@ -9,8 +9,8 @@ import { Monitor, Moon, Sun } from 'lucide-react';
 /// และ `subsystem.yaml` ประกาศว่า `theme: light+dark` แต่ไม่มีโค้ดไหนใส่คลาส
 /// `.dark` ให้เลย สีชุดมืดจึงเป็นโค้ดที่ไม่มีวันถูกใช้
 ///
-/// ค่าเริ่มต้นคือ "ตามระบบ" เพราะผู้ใช้ตั้งค่านั้นไว้ที่เครื่องแล้ว การบังคับ
-/// เป็นสว่างเสมอคือการเพิกเฉยต่อสิ่งที่เขาเลือกไว้
+/// ค่าเริ่มต้นคือ **สว่าง** ให้หน้าตาตรงกับ Core Hub (PL ตัดสิน 8 ต.ค. 2569)
+/// ผู้ใช้ที่อยากได้มืดหรือตามเครื่องเลือกเองได้ และระบบจำไว้
 
 export type ThemeChoice = 'light' | 'dark' | 'system';
 
@@ -77,15 +77,15 @@ function readChoice(): ThemeChoice {
   try {
     const raw = window.localStorage.getItem(THEME_KEY);
 
-    return raw === 'light' || raw === 'dark' ? raw : 'system';
+    return raw === 'system' || raw === 'dark' ? raw : 'light';
   } catch {
     // โหมดส่วนตัวของเบราว์เซอร์บล็อก localStorage ได้
-    return 'system';
+    return 'light';
   }
 }
 
-/// ฝั่งเซิร์ฟเวอร์ไม่มี localStorage และเดาธีมของผู้ใช้ไม่ได้
-const serverChoice = (): ThemeChoice => 'system';
+/// ฝั่งเซิร์ฟเวอร์ไม่มี localStorage — ใช้ค่าเริ่มต้นเดียวกับเบราว์เซอร์
+const serverChoice = (): ThemeChoice => 'light';
 
 /// ธีมปัจจุบันสำหรับที่อื่นที่ไม่ใช่ปุ่มสามตัว — เช่นสวิตช์ "โหมดมืด" ในเมนู ≡
 /// แบบ Instagram · `dark` คือผลจริงบนหน้าจอ (รวมกรณี "ตามระบบ" ที่ OS เป็นมืด)

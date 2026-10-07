@@ -41,14 +41,26 @@ const CORE_SIGNUP_URL = process.env.NEXT_PUBLIC_CORE_SIGNUP_URL ?? '';
 
 export default function LoginPage() {
   return (
-    <main className="grid min-h-dvh place-items-center bg-secondary/40 px-4 py-10">
-      <div className="w-full max-w-md">
-        <header className="mb-6 text-center">
-          <span className="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-primary text-xl font-bold text-primary-foreground">
-            CS
-          </span>
+    // หน้าตาแบบหน้าเข้าสู่ระบบของ Core Hub — พื้นน้ำเงินไล่สี วงแสงฟุ้ง การ์ดขาวพร้อมโลโก้สาขา
+    <main
+      className="relative grid min-h-dvh place-items-center overflow-hidden px-4 py-10"
+      style={{ backgroundImage: 'var(--sidebar-gradient)' }}
+    >
+      <span aria-hidden className="pointer-events-none absolute -left-24 -top-24 size-80 rounded-full bg-ring opacity-40 blur-3xl" />
+      <span aria-hidden className="pointer-events-none absolute -bottom-32 -right-16 size-96 rounded-full bg-primary opacity-50 blur-3xl" />
 
-          <h1 className="text-2xl font-semibold">CS Nexus</h1>
+      <div className="relative w-full max-w-md rounded-2xl bg-card p-6 text-card-foreground shadow-csmju-lg sm:p-8">
+        <header className="mb-6 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- ไฟล์ใน public ไม่ต้องผ่านตัวย่อรูป */}
+          <img
+            src="/csmju-logo.png"
+            alt="โลโก้ สาขาวิทยาการคอมพิวเตอร์ มหาวิทยาลัยแม่โจ้"
+            width={720}
+            height={428}
+            className="mx-auto mb-4 h-20 w-auto object-contain"
+          />
+
+          <h1 className="font-heading text-2xl font-extrabold tracking-tight text-primary">CS Nexus</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             ศูนย์กลางชุมชนของสาขาวิทยาการคอมพิวเตอร์ · CSMJU2030
           </p>

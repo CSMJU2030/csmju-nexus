@@ -130,8 +130,10 @@ export function MobileTopBar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-[3.25rem] shrink-0 items-center gap-3 border-b border-border bg-background px-3 lg:hidden">
-      <Link href="/feed" className="shrink-0 font-[Segoe_Script,Brush_Script_MT,cursive] text-[1.45rem] leading-none">
-        CS Nexus
+      <Link href="/feed" aria-label="CS Nexus หน้าหลัก" className="flex shrink-0 items-center gap-2">
+        {/* eslint-disable-next-line @next/next/no-img-element -- ไฟล์เล็กใน public ไม่ต้องผ่านตัวย่อรูป */}
+        <img src="/csmju-mark.png" alt="" width={28} height={28} className="size-7 rounded-full object-contain" />
+        <span className="font-heading text-lg font-extrabold leading-none tracking-tight text-primary">CS Nexus</span>
       </Link>
 
       {/* หน้าค้นหามีช่องค้นหาของตัวเองอยู่แล้ว — ถ้าคงช่องนี้ไว้จะเห็นสองช่องซ้อนกัน */}

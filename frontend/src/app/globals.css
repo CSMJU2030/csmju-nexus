@@ -197,10 +197,10 @@
   /* ฟอนต์ระบบชุดเดียวกับ Instagram บนเว็บ — ภาษาไทยบน Windows ตกไปที่
      Leelawadee UI แบบเดียวกับที่ Instagram แสดงผล ส่วนเครื่องที่ไม่มี
      ใช้ Noto Sans Thai ที่โหลดมากับหน้าเว็บ */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
-    Arial, "Leelawadee UI", var(--font-noto-thai), sans-serif;
+  /* ฟอนต์ชุดเดียวกับ Core Hub — เนื้อความ Noto Sans Thai · หัวข้อ Plus Jakarta Sans (ไฟล์อยู่ใน repo) */
+  --font-sans: var(--font-noto-thai), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-jakarta), var(--font-noto-thai), ui-sans-serif, sans-serif;
   --color-link: var(--link);
   --color-badge: var(--badge);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -282,134 +282,124 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   สีของหน้าจอ — ตามหน้าตา Instagram บนเว็บ (ตัดสินโดย PL 29 ก.ย. 2569)
+   สีของหน้าจอ — ตามธีมของ Core Hub (PM ขอให้ทุกระบบหน้าตาเดียวกับ Core Hub · PL 8 ต.ค. 2569)
 
-   **เบี่ยงจาก ui-design-system.md** ซึ่งล็อกสีขององค์กรไว้ที่ rgb(0 76 153)
-   PL สั่งให้หน้าตาเหมือน Instagram ทั้งโหมดสว่างและมืด จึงใช้ชุดนี้แทน
-   และบันทึกไว้ใน subsystem.yaml (ui.theme) ให้ส่วนกลางเห็น
-
-     โหมดมืด   พื้น rgb(12 16 20)  พื้นยก rgb(37 41 46)  ตัวอักษร rgb(245 245 245)
-     โหมดสว่าง พื้นขาว            พื้นยก rgb(239 239 239)  ตัวอักษร rgb(12 16 20)
-     ทั้งสอง   ปุ่มหลัก rgb(74 93 249) · ป้ายแจ้งเตือน rgb(255 48 64)
+   ค่ามาจาก `globals.css` ของ csmju-core-hub (develop):
+     พื้น rgb(248 249 250) · การ์ดขาว · ตัวอักษร rgb(25 28 29) · ตัวอักษรรอง rgb(67 70 84)
+     น้ำเงินหลัก rgb(0 60 180) / rgb(33 84 217) · ปุ่มไล่สี rgb(33 84 217) → rgb(59 128 242)
+     แถบเมนูซ้ายไล่สีน้ำเงินเข้ม rgb(22 38 77) → rgb(13 79 168) ตัวอักษรขาว
+   ค่าเริ่มต้นเป็นโหมดสว่าง · โหมดมืดใช้โทนน้ำเงินเข้มชุดเดียวกัน
    ───────────────────────────────────────────────────────────────── */
 :root {
   /* ชื่อ --csmju-* ยังอยู่ เพราะคอมโพเนนต์หลายตัวอ้างถึงตรง ๆ */
-  --csmju-primary: rgb(74 93 249);
-  --csmju-primary-soft: rgb(239 239 239);
-  --csmju-ink: rgb(12 16 20);
+  --csmju-primary: rgb(33 84 217);
+  --csmju-primary-soft: rgb(220 225 255);
+  --csmju-ink: rgb(25 28 29);
   --csmju-surface: rgb(255 255 255);
 
-  /* วงแหวนสตอรี่ที่ยังไม่ได้ดู — ไล่สีแบบ Instagram (เหลือง → ส้ม → ชมพู → ม่วง) */
-  --csmju-story-ring-1: rgb(150 47 191);
-  --csmju-story-ring-2: rgb(214 41 118);
-  --csmju-story-ring-3: rgb(254 218 117);
+  /* วงแหวนสตอรี่ที่ยังไม่ได้ดู — ไล่น้ำเงินแบบปุ่มของ Core Hub */
+  --csmju-story-ring-1: rgb(0 60 180);
+  --csmju-story-ring-2: rgb(33 84 217);
+  --csmju-story-ring-3: rgb(59 128 242);
 
-  --background: rgb(255 255 255);
-  --foreground: rgb(12 16 20);
+  --background: rgb(248 249 250);
+  --foreground: rgb(25 28 29);
   --card: rgb(255 255 255);
-  --card-foreground: rgb(12 16 20);
+  --card-foreground: rgb(25 28 29);
   --popover: rgb(255 255 255);
-  --popover-foreground: rgb(12 16 20);
-  --primary: rgb(74 93 249);
+  --popover-foreground: rgb(25 28 29);
+  --primary: rgb(33 84 217);
   --primary-foreground: rgb(255 255 255);
-  --secondary: rgb(239 239 239);
-  --secondary-foreground: rgb(12 16 20);
-  --muted: rgb(239 239 239);
-  --muted-foreground: rgb(115 115 115);
-  --accent: rgb(0 0 0 / 0.05);
-  --accent-foreground: rgb(12 16 20);
-  --destructive: rgb(237 73 86);
-  --success: rgb(88 195 34);
-  --warning: rgb(255 183 0);
-  --border: rgb(219 219 219);
-  --input: rgb(219 219 219);
-  --ring: rgb(74 93 249);
-  --link: rgb(74 93 249);
-  --badge: rgb(255 48 64);
-  --bubble-mine: rgb(74 93 249);
-  --bubble-theirs: rgb(239 239 239);
-  --chart-1: rgb(74 93 249);
-  --chart-2: rgb(214 41 118);
-  --chart-3: rgb(150 47 191);
-  --chart-4: rgb(254 218 117);
-  --chart-5: rgb(88 195 34);
+  --secondary: rgb(237 238 239);
+  --secondary-foreground: rgb(25 28 29);
+  --muted: rgb(243 244 245);
+  --muted-foreground: rgb(67 70 84);
+  --accent: rgb(0 60 180 / 0.06);
+  --accent-foreground: rgb(25 28 29);
+  --destructive: rgb(186 26 26);
+  --success: rgb(16 185 129);
+  --warning: rgb(245 158 11);
+  --border: rgb(225 227 228);
+  --input: rgb(196 197 215);
+  --ring: rgb(59 128 242);
+  --link: rgb(0 60 180);
+  --badge: rgb(186 26 26);
+  --bubble-mine: rgb(33 84 217);
+  --bubble-theirs: rgb(237 238 239);
+  --chart-1: rgb(33 84 217);
+  --chart-2: rgb(59 128 242);
+  --chart-3: rgb(78 93 135);
+  --chart-4: rgb(245 158 11);
+  --chart-5: rgb(16 185 129);
   --radius: 0.5rem;
-  --sidebar: rgb(255 255 255);
-  --sidebar-foreground: rgb(12 16 20);
-  --sidebar-primary: rgb(12 16 20);
-  --sidebar-primary-foreground: rgb(255 255 255);
-  --sidebar-accent: rgb(0 0 0 / 0.05);
-  --sidebar-accent-foreground: rgb(12 16 20);
-  --sidebar-border: rgb(219 219 219);
-  --sidebar-ring: rgb(74 93 249);
 
-  --elevation-xs: 0 1px 2px rgb(0 0 0 / 0.06);
-  --elevation-sm: 0 1px 2px rgb(0 0 0 / 0.08), 0 2px 8px rgb(0 0 0 / 0.06);
-  --elevation-md: 0 4px 12px rgb(0 0 0 / 0.15);
-  --elevation-lg: 0 8px 32px rgb(0 0 0 / 0.2);
-  --elevation-glow: 0 4px 14px rgb(74 93 249 / 0.3);
+  /* แถบเมนูซ้าย = แถบน้ำเงินไล่สีของ Core Hub ทั้งสองโหมด */
+  --sidebar: rgb(22 38 77);
+  --sidebar-gradient: linear-gradient(160deg, rgb(22 38 77) 0%, rgb(13 79 168) 100%);
+  --sidebar-foreground: rgb(255 255 255);
+  --sidebar-primary: rgb(255 255 255);
+  --sidebar-primary-foreground: rgb(22 38 77);
+  --sidebar-accent: rgb(255 255 255 / 0.1);
+  --sidebar-accent-foreground: rgb(255 255 255);
+  --sidebar-border: rgb(255 255 255 / 0.08);
+  --sidebar-ring: rgb(255 255 255);
 
-  --csmju-gradient: linear-gradient(
-    45deg,
-    rgb(254 218 117) 0%,
-    rgb(250 126 30) 25%,
-    rgb(214 41 118) 50%,
-    rgb(150 47 191) 75%,
-    rgb(79 91 213) 100%
-  );
+  --elevation-xs: 0 1px 2px rgb(0 0 0 / 0.05);
+  --elevation-sm: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.04);
+  --elevation-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --elevation-lg: 0 10px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --elevation-glow: 0 4px 14px rgb(33 84 217 / 0.3);
+
+  /* ปุ่มหลัก/ตราสัญลักษณ์ — ไล่สีเดียวกับ .btn-gradient ของ Core Hub */
+  --csmju-gradient: linear-gradient(90deg, rgb(33 84 217) 0%, rgb(59 128 242) 100%);
 
   --hairline: rgb(0 0 0 / 0.08);
 }
 
 .dark {
-  --csmju-primary: rgb(74 93 249);
-  --csmju-primary-soft: rgb(37 41 46);
-  --csmju-ink: rgb(245 245 245);
-  --csmju-surface: rgb(12 16 20);
+  --csmju-primary: rgb(59 128 242);
+  --csmju-primary-soft: rgb(30 41 66);
+  --csmju-ink: rgb(236 239 244);
+  --csmju-surface: rgb(14 20 33);
 
-  --background: rgb(12 16 20);
-  --foreground: rgb(245 245 245);
-  --card: rgb(37 41 46);
-  --card-foreground: rgb(245 245 245);
-  --popover: rgb(37 41 46);
-  --popover-foreground: rgb(245 245 245);
-  --primary: rgb(74 93 249);
+  --background: rgb(14 20 33);
+  --foreground: rgb(236 239 244);
+  --card: rgb(24 32 50);
+  --card-foreground: rgb(236 239 244);
+  --popover: rgb(24 32 50);
+  --popover-foreground: rgb(236 239 244);
+  --primary: rgb(59 128 242);
   --primary-foreground: rgb(255 255 255);
-  --secondary: rgb(37 41 46);
-  --secondary-foreground: rgb(245 245 245);
-  --muted: rgb(37 41 46);
-  --muted-foreground: rgb(168 168 168);
-  --accent: rgb(255 255 255 / 0.1);
-  --accent-foreground: rgb(245 245 245);
-  --destructive: rgb(255 48 64);
-  --success: rgb(88 195 34);
-  --warning: rgb(255 183 0);
-  --border: rgb(54 58 63);
-  --input: rgb(54 58 63);
-  --ring: rgb(112 141 255);
-  --link: rgb(112 141 255);
-  --badge: rgb(255 48 64);
-  --bubble-mine: rgb(74 93 249);
-  --bubble-theirs: rgb(37 41 46);
-  --chart-1: rgb(112 141 255);
-  --chart-2: rgb(214 41 118);
-  --chart-3: rgb(150 47 191);
-  --chart-4: rgb(254 218 117);
-  --chart-5: rgb(88 195 34);
-  --sidebar: rgb(12 16 20);
-  --sidebar-foreground: rgb(245 245 245);
-  --sidebar-primary: rgb(245 245 245);
-  --sidebar-primary-foreground: rgb(12 16 20);
-  --sidebar-accent: rgb(255 255 255 / 0.1);
-  --sidebar-accent-foreground: rgb(245 245 245);
-  --sidebar-border: rgb(38 42 46);
-  --sidebar-ring: rgb(112 141 255);
+  --secondary: rgb(30 41 66);
+  --secondary-foreground: rgb(236 239 244);
+  --muted: rgb(30 41 66);
+  --muted-foreground: rgb(170 180 200);
+  --accent: rgb(255 255 255 / 0.08);
+  --accent-foreground: rgb(236 239 244);
+  --destructive: rgb(255 107 107);
+  --success: rgb(52 211 153);
+  --warning: rgb(251 191 36);
+  --border: rgb(45 56 82);
+  --input: rgb(58 70 98);
+  --ring: rgb(112 160 255);
+  --link: rgb(130 170 255);
+  --badge: rgb(239 68 68);
+  --bubble-mine: rgb(33 84 217);
+  --bubble-theirs: rgb(30 41 66);
+  --chart-1: rgb(112 160 255);
+  --chart-2: rgb(59 128 242);
+  --chart-3: rgb(160 172 210);
+  --chart-4: rgb(251 191 36);
+  --chart-5: rgb(52 211 153);
+  --sidebar: rgb(10 18 38);
+  --sidebar-gradient: linear-gradient(160deg, rgb(10 18 38) 0%, rgb(13 52 120) 100%);
+  --sidebar-ring: rgb(112 160 255);
 
   --elevation-xs: none;
   --elevation-sm: 0 2px 8px rgb(0 0 0 / 0.4);
   --elevation-md: 0 4px 16px rgb(0 0 0 / 0.5);
   --elevation-lg: 0 12px 40px rgb(0 0 0 / 0.6);
-  --elevation-glow: 0 4px 14px rgb(74 93 249 / 0.35);
+  --elevation-glow: 0 4px 14px rgb(59 128 242 / 0.35);
 
   --hairline: rgb(255 255 255 / 0.1);
 }
@@ -442,7 +432,7 @@
   }
 
   ::selection {
-    background: rgb(74 93 249 / 0.35);
+    background: rgb(59 128 242 / 0.3);
   }
 
   /* แถบเลื่อนบาง ๆ ที่กลมกลืนกับธีม ไม่ใช่แถบเทาของระบบปฏิบัติการ
@@ -652,6 +642,30 @@
   /* หน้าที่อยู่ = ไอคอนเส้นหนา + ชื่อตัวหนา สีเดียวกับตัวอักษร แบบ Instagram */
   .csmju-rail-item[data-active='true'] {
     font-weight: 700;
+    background: rgb(255 255 255 / 0.12);
+    box-shadow: inset 0.25rem 0 0 var(--sidebar-foreground);
+  }
+
+  /* แถบซ้ายไล่สีน้ำเงินแบบ Core Hub · ตัวอักษรรองโปร่ง 70% แบบเมนูของ Core Hub */
+  .csmju-rail {
+    background-image: var(--sidebar-gradient);
+  }
+
+  .csmju-rail-item:not([data-active='true']) {
+    color: rgb(255 255 255 / 0.78);
+  }
+
+  .csmju-rail-item:not([data-active='true']):hover {
+    color: var(--sidebar-foreground);
+  }
+
+  /* โลโก้สาขาในวงกลมขาวแบบหัวแถบของ Core Hub */
+  .csmju-logo-badge {
+    display: grid;
+    place-items: center;
+    border-radius: 9999px;
+    background: rgb(255 255 255);
+    box-shadow: var(--elevation-sm);
   }
 
   .csmju-rail-label {
